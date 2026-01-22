@@ -2,3 +2,5 @@ Features.md
 venv
 __pycache__/
 *.pyc
+modules.md
+.env
