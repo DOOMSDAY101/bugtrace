@@ -97,8 +97,6 @@
 # if __name__ == "__main__":
 #     app()
 
-
-# bugtrace/cli/main.py
 import os
 from pathlib import Path
 from rich.console import Console
@@ -107,7 +105,7 @@ from rich.panel import Panel
 from rich.align import Align
 from pyfiglet import Figlet
 from rich.text import Text
-from rich import box  # Add this import
+from rich import box
 
 console = Console() 
 
@@ -117,15 +115,12 @@ def create_designer_logo():
     """
     Create a thick, designer-style BUGTRACE logo
     """
-    # Try different fonts for thicker appearance
-    f = Figlet(font="colossal")  # Very thick and bold
+    f = Figlet(font="colossal")  
     logo_text = f.renderText("BUGTRACE")
     
-    # Create gradient effect with Rich
     logo = Text()
     lines = logo_text.split('\n')
     
-    # Gradient colors from cyan to green to yellow
     colors = ["cyan", "bright_cyan", "green", "bright_green", "yellow"]
     
     for i, line in enumerate(lines):
@@ -152,7 +147,7 @@ def create_block_logo():
     colors = ["bright_cyan", "cyan", "bright_green", "green", "bright_yellow", "yellow"]
     
     for i, line in enumerate(lines):
-        if line.strip():  # Only color non-empty lines
+        if line.strip():  
             color = colors[i % len(colors)]
             text.append(line + "\n", style=f"bold {color}")
         else:
@@ -161,16 +156,24 @@ def create_block_logo():
     return text
 
 @app.callback(invoke_without_command=True)
-def main():
+def main(ctx: typer.Context):
     """
     Bugtrace CLI
     """
-    # Choose your logo style:
-    
-    # Option 1: Gradient designer logo (thicker font)
-    # logo = create_designer_logo()
-    
-    # Option 2: Ultra thick block letters (RECOMMENDED - THICKEST)
+ 
+    # Show logo ONLY if:
+    # - no subcommand (bugtrace)
+    # - help is requested
+    # - init command is used
+    show_logo = (
+        ctx.invoked_subcommand is None
+        or ctx.invoked_subcommand == "init"
+        or ctx.resilient_parsing  # this is True during --help
+    )
+
+    if not show_logo:
+        return
+
     logo = create_block_logo()
     
     panel = Panel(
@@ -179,7 +182,7 @@ def main():
         padding=(1, 4),
         title="[bold bright_yellow]⚡ BUGTRACE ⚡[/bold bright_yellow]",
         subtitle="[bold bright_cyan]AI-Powered Debugging Assistant[/bold bright_cyan]",
-        box=box.HEAVY  # Changed from None to box.HEAVY for thick borders
+        box=box.HEAVY  
     )
     
     console.print("\n")
@@ -196,5 +199,6 @@ def init():
     console.print("[bold green]✅ bugtrace.yaml created![/bold green]")
     console.print("Edit it to customize settings.\n")
 
-if __name__ == "__main__":
+
+def run():
     app()

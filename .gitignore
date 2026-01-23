@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 modules.md
 .env
+*.egg-info/
