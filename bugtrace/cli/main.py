@@ -65,27 +65,6 @@
 # #     create_default_config()
 # #     typer.echo("✅ bugtrace.yaml created! Edit it to customize settings.")
 
-
-# # Generate ASCII art for BUGTRACE
-# f = Figlet(font="big")  # you can try "standard", "slant", "banner", etc.
-# BUGTRACE_LOGO = f.renderText("BUGTRACE")
-
-# @app.callback(invoke_without_command=True)
-# def main():
-#     """
-#     Bugtrace CLI
-#     """
-#     panel = Panel(
-#         Align.center(BUGTRACE_LOGO),
-#         border_style="bold green",
-#         padding=(1, 4),
-#         title="[bold green]Bugtrace[/bold green]",
-#         subtitle="[cyan]AI-Powered Debugging[/cyan]",
-#     )
-#     console.print(panel)
-#     console.print("[bold cyan]Welcome to Bugtrace![/bold cyan]")
-#     console.print("Type `bugtrace --help` to see available commands.\n")
-
 # @app.command()
 # def init():
 #     """
@@ -106,6 +85,10 @@ from rich.align import Align
 from pyfiglet import Figlet
 from rich.text import Text
 from rich import box
+from bugtrace.utils.fs import ensure_state_dir
+from bugtrace.config.settings import create_default_config
+
+
 
 console = Console() 
 
@@ -192,12 +175,58 @@ def main(ctx: typer.Context):
     console.print("[dim]Type [bold]bugtrace --help[/bold] to see available commands.[/dim]\n")
 
 @app.command()
-def init():
+def init(
+     path: Path = typer.Option(
+        None,
+        "--path",
+        help="Path to the project root (defaults to current directory)",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True,
+    ),
+     llm: str = typer.Option(
+        "ollama",
+        "--llm",
+        help="LLM provider to use (ollama, openai, etc.)",
+    ),
+    model: str = typer.Option(
+        "llama3.2:3b",
+        "--model",
+        help="Model name to initialize with",
+    ),
+):
     """
     Initialize Bugtrace configuration for this project.
     """
+    project_root = path or Path.cwd()
+
+     # Check if already initialized
+    if (project_root / ".bugtrace").exists():
+        console.print(
+            "[yellow]⚠ Bugtrace already initialized in this directory.[/yellow]"
+        )
+        return
+
+
+    # 1. Create .bugtrace/
+    state_dir = ensure_state_dir(project_root)
+
+     # 2. Create bugtrace.yaml
+    created = create_default_config(
+        project_root=project_root,
+        llm_provider=llm,
+        model=model,
+    )
+
     console.print("[bold green]✅ bugtrace.yaml created![/bold green]")
+    console.print(f"[dim]Project root:[/dim] {project_root}")
+    console.print(f"[dim]State directory:[/dim] {state_dir}")
     console.print("Edit it to customize settings.\n")
+    if created:
+        console.print("[dim]Created bugtrace.yaml[/dim]")
+    else:
+        console.print("[yellow]bugtrace.yaml already exists — skipped[/yellow]")
 
 
 def run():

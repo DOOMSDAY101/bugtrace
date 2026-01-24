@@ -1,0 +1,23 @@
+llm:
+  provider: ollama
+  model: llama3.2:3b
+  temperature: 0.2
+paths:
+  project_root: .
+  ignore:
+  - node_modules
+  - venv
+  - .git
+  logs:
+  - logs/
+rag:
+  chunk_size: 500
+  top_k: 6
+  store: chroma
+tools:
+  code_search: true
+  log_search: true
+  config_check: true
+analysis:
+  max_steps: 5
+  reasoning_style: concise
