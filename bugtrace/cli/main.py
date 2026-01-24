@@ -55,27 +55,6 @@
 # #     typer.echo(report)
 
 
-# # @app.command()
-# # def init():
-# #     """
-# #     Initialize Bugtrace configuration for this project.
-# #     """
-# #     from bugtrace.config.settings import create_default_config
-
-# #     create_default_config()
-# #     typer.echo("✅ bugtrace.yaml created! Edit it to customize settings.")
-
-# @app.command()
-# def init():
-#     """
-#     Initialize Bugtrace configuration for this project.
-#     """
-#     # For now, just pretend we created config
-#     console.print("[bold green]✅ bugtrace.yaml created![/bold green]")
-#     console.print("Edit it to customize settings.\n")
-# if __name__ == "__main__":
-#     app()
-
 import os
 from pathlib import Path
 from rich.console import Console
@@ -87,6 +66,8 @@ from rich.text import Text
 from rich import box
 from bugtrace.utils.fs import ensure_state_dir
 from bugtrace.config.settings import create_default_config
+from bugtrace.analyze.core import analyze
+
 
 
 
@@ -228,6 +209,21 @@ def init(
     else:
         console.print("[yellow]bugtrace.yaml already exists — skipped[/yellow]")
 
+@app.command()
+def scan(
+    path: Path = typer.Option(
+        None,
+        "--path",
+        help="Path to project root (defaults to current directory)",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True,
+    )
+):
+    """Scan project files and update manifest."""
+    project_root = path or Path.cwd()
+    analyze(project_root)
 
 def run():
     app()

@@ -5,11 +5,16 @@ llm:
 paths:
   project_root: .
   ignore:
-  - node_modules
-  - venv
-  - .git
+    - node_modules
+    - venv
+    - .env
+    - .git
+    - .bugtrace
+    - "*.pyc"
+    - "__pycache__"
+    - bugtrace.egg-info
   logs:
-  - logs/
+    - logs/
 rag:
   chunk_size: 500
   top_k: 6

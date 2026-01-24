@@ -10,7 +10,7 @@ DEFAULT_CONFIG = {
     },
     "paths": {
         "project_root": ".",
-        "ignore": ["node_modules", "venv", ".git"],
+        "ignore": ["node_modules", "venv", ".git", ".bugtrace"],
         "logs": ["logs/"],
     },
     "rag": {
@@ -52,3 +52,14 @@ def create_default_config(
         yaml.safe_dump(config, f, sort_keys=False)
 
     return True
+
+def load_user_config(project_root: Path) -> dict:
+    """
+    Load user configuration from bugtrace.yaml.
+    Falls back to DEFAULT_CONFIG if not found.
+    """
+    config_path = project_root / "bugtrace.yaml"
+    if config_path.exists():
+        with open(config_path, "r") as f:
+            return yaml.safe_load(f)
+    return DEFAULT_CONFIG.copy()
