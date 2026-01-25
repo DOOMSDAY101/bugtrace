@@ -16,6 +16,14 @@ def analyze(project_root: Path = None):
     # Load user config from bugtrace.yaml
     config = load_user_config(project_root)
     
+    try:
+        from bugtrace.config.settings import validate_config
+        validate_config(config)
+        console.print("[green]✓ Configuration valid[/green]")
+    except ValueError as e:
+        console.print(f"[red]✗ Invalid configuration: {e}[/red]")
+        raise
+
     # Get ignore patterns from YAML
     ignore = config.get("paths", {}).get("ignore", [])
 
