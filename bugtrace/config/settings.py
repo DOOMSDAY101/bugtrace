@@ -14,7 +14,8 @@ DEFAULT_CONFIG = {
         "logs": ["logs/"],
     },
     "rag": {
-        "chunk_size": 500,
+        "chunk_size": 1000,
+        "chunk_overlap": 200,
         "top_k": 6,
         "store": "chroma",
     },
@@ -118,11 +119,17 @@ def validate_config(config: dict) -> dict:
     # Validate RAG section
     rag = config.get("rag", {})
     
-    chunk_size = rag.get("chunk_size", 500)
+    chunk_size = rag.get("chunk_size", 1000)
     if not isinstance(chunk_size, int):
         errors.append("rag.chunk_size must be an integer")
     elif chunk_size <= 0 or chunk_size > 2000:
         errors.append("rag.chunk_size must be between 1 and 2000")
+    
+    chunk_overlap = rag.get("chunk_overlap", 200)
+    if not isinstance(chunk_overlap, int):
+        errors.append("rag.chunk_overlap must be an integer")
+    elif chunk_overlap < 200 or chunk_overlap > 2000:
+        errors.append("rag.chunk_size must be between 200 and 2000")
     
     top_k = rag.get("top_k", 6)
     if not isinstance(top_k, int):

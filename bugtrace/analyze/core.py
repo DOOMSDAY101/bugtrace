@@ -1,6 +1,8 @@
 from pathlib import Path
 from bugtrace.utils.fs import walk_project, update_manifest, ensure_state_dir
 from bugtrace.config.settings import load_user_config
+from bugtrace.utils.state import StateManager  
+
 
 from rich.console import Console
 
@@ -12,6 +14,8 @@ def analyze(project_root: Path = None):
 
     # Ensure .bugtrace exists
     state_dir = ensure_state_dir(project_root)
+
+    state_manager = StateManager(state_dir)
 
     # Load user config from bugtrace.yaml
     config = load_user_config(project_root)
@@ -59,3 +63,5 @@ def analyze(project_root: Path = None):
             ]
         )
     )
+    # ✅ Update scan timestamp in state
+    state_manager.update_scan_time()

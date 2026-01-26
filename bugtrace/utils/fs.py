@@ -15,17 +15,16 @@ def ensure_state_dir(project_root: Path) -> Path:
     if not manifest.exists():
         manifest.write_text(json.dumps({}, indent=2))
 
-    state = state_dir / "state.json"
-    if not state.exists():
-        state.write_text(
-            json.dumps(
-                {
-                    "config_hash": None,
-                    "last_indexed": None,
-                },
-                indent=2,
-            )
-        )
+    # state = state_dir / "state.json"
+    # if not state.exists():
+    #     state.write_text(
+    #         json.dumps(
+    #             {
+    #                 "config_hash": None,
+    #             },
+    #             indent=2,
+    #         )
+    #     )
 
     return state_dir
 
