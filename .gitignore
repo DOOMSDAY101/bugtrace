@@ -7,3 +7,4 @@ modules.md
 .env
 *.egg-info/
 .bugtrace/
+test/
