@@ -6,6 +6,8 @@ from langchain_text_splitters import (
     Language
 )
 import ast
+import re
+import hashlib
 
 class Chunker:
     """Smart file chunker using LangChain text splitters"""
@@ -78,16 +80,85 @@ class Chunker:
         for i, chunk_text in enumerate(chunks):
             result.append({
                 'text': chunk_text,
-                'metadata': {
-                    'file': str(filepath),
-                    'chunk_id': i,
-                    'language': suffix.lstrip('.'),
-                    'total_chunks': len(chunks)
-                }
+                'metadata': self._create_metadata(filepath, chunk_text, i, len(chunks))
             })
         
         return result
+        
     
+    def _create_metadata(self, filepath: Path, chunk_text: str, chunk_id: int, total_chunks: int) -> Dict:
+        """Create rich metadata for bug tracing"""
+        metadata = {
+            # File context
+            'file': str(filepath),
+            'file_name': filepath.name,
+            'file_type': filepath.suffix.lstrip('.'),
+            
+            # Chunk context
+            'chunk_id': chunk_id,
+            'total_chunks': total_chunks,
+            'chunk_hash': hashlib.md5(chunk_text.encode()).hexdigest()[:16],
+            
+            # Code analysis (for bug tracing)
+            'has_error_handling': self._has_error_handling(chunk_text),
+            'has_logging': self._has_logging(chunk_text),
+            'has_todo': self._has_todo(chunk_text),
+            'has_fixme': self._has_fixme(chunk_text),
+            'line_count': chunk_text.count('\n') + 1,
+        }
+        
+        # Add language-specific metadata
+        if filepath.suffix == '.py':
+            metadata.update(self._extract_python_metadata(chunk_text))
+        
+        return metadata
+    
+    def _has_error_handling(self, text: str) -> bool:
+        """Check if chunk has error handling"""
+        patterns = [
+            r'\btry\s*:',
+            r'\bexcept\s+',
+            r'\bcatch\s*\(',
+            r'\bfinally\s*:',
+            r'\.catch\(',
+        ]
+        return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
+    
+    def _has_logging(self, text: str) -> bool:
+        """Check if chunk has logging statements"""
+        patterns = [
+            r'\blogger\.',
+            r'\bprint\(',
+            r'\bconsole\.log\(',
+            r'\bLog\.',
+            r'logging\.',
+        ]
+        return any(re.search(pattern, text, re.IGNORECASE) for pattern in patterns)
+    
+    def _has_todo(self, text: str) -> bool:
+        """Check for TODO comments"""
+        return bool(re.search(r'#\s*TODO|//\s*TODO', text, re.IGNORECASE))
+    
+    def _has_fixme(self, text: str) -> bool:
+        """Check for FIXME comments"""
+        return bool(re.search(r'#\s*FIXME|//\s*FIXME', text, re.IGNORECASE))
+    
+    def _extract_python_metadata(self, text: str) -> Dict:
+        """Extract Python-specific metadata"""
+        metadata = {}
+        
+        # Check for function definitions
+        func_match = re.search(r'def\s+(\w+)\s*\(', text)
+        if func_match:
+            metadata['function_name'] = func_match.group(1)
+        
+        # Check for class definitions
+        class_match = re.search(r'class\s+(\w+)', text)
+        if class_match:
+            metadata['class_name'] = class_match.group(1)
+        
+        return metadata
+
     def _get_code_splitter(self, language: Language) -> RecursiveCharacterTextSplitter:
         """
         Get or create a code-aware splitter for the given language.

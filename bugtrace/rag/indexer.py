@@ -196,11 +196,54 @@ def _build_embeddings(
     state_manager: StateManager
 ):
     """
-    Placeholder for actual embedding generation (Timeline 3).
-    This is where you'll implement the real RAG logic.
+    Build embeddings for files and store in vector database.
     
-    For now, it just simulates the process.
+    Args:
+        files_to_index: Dict of {filepath: hash} to index
+        config: User configuration
+        index_dir: Directory for vector store
+        state_manager: State manager instance
     """
+
+    from bugtrace.rag.embeddings import get_embedder
+    from bugtrace.rag.chunker import Chunker
+    from bugtrace.rag.vector_store import VectorStore
+    from pathlib import Path as FilePath
+    
+    if not files_to_index:
+        return
+
+    # Initialize components
+    console.print("[dim]Initializing embedding system...[/dim]")
+    
+    try:
+        embedder = get_embedder(config)
+        console.print(f"   [green]✓ Embedder ready (dimension: {embedder.get_dimension()})[/green]")
+    except Exception as e:
+        console.print(f"   [red]✗ Failed to initialize embedder: {e}[/red]")
+        raise
+
+    chunker = Chunker(
+        chunk_size=config['rag']['chunk_size'],
+        chunk_overlap=config['rag']['chunk_overlap']
+    )
+
+    # Get project root from first file path
+    first_file = FilePath(list(files_to_index.keys())[0])
+    project_root = first_file.parent
+    while project_root.parent != project_root:
+        if (project_root / ".bugtrace").exists():
+            break
+        project_root = project_root.parent
+    
+      # Initialize embedder
+    embedder = get_embedder(config)
+    
+    vector_store = VectorStore(index_dir, project_root, embedder=embedder)
+    console.print(f"   [green]✓ Vector store ready: {vector_store.collection_name}[/green]\n")
+    
+
+# Process files with progress
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -212,18 +255,44 @@ def _build_embeddings(
             total=len(files_to_index)
         )
         
-        for filepath in files_to_index.keys():
-            # TODO Timeline 3: 
-
-            # 1. Read file content
-            # 2. Chunk into pieces
-            # 3. Generate embeddings
-            # 4. Store in vector DB
+        total_chunks = 0
+        
+        for filepath_str in files_to_index.keys():
+            filepath = FilePath(filepath_str)
             
-            # Simulate work
-            import time
-            time.sleep(0.01)
+            try:
+                # Read file content
+                content = filepath.read_text(encoding='utf-8', errors='ignore')
+                
+                # Delete old chunks for this file
+                vector_store.delete_file_chunks(str(filepath))
+                
+                # Chunk the file
+                chunks = chunker.chunk_file(filepath, content)
+                
+                if not chunks:
+                    progress.advance(task)
+                    continue
+                
+                # Generate embeddings
+                texts = [chunk['text'] for chunk in chunks]
+                embeddings = embedder.embed_texts(texts)
+                
+                # Store in vector database
+                vector_store.add_chunks(chunks, embeddings)
+                
+                total_chunks += len(chunks)
+                progress.update(
+                    task,
+                    description=f"Processed {filepath.name}: {len(chunks)} chunks"
+                )
+                
+            except Exception as e:
+                console.print(f"   [yellow]⚠ Error processing {filepath.name}: {e}[/yellow]")
             
             progress.advance(task)
         
-        progress.update(task, description="[green]✓ All files processed")
+        progress.update(task, description=f"[green]✓ Completed: {total_chunks} chunks indexed")
+    # Update state metadata with actual chunk count
+    state_manager.update_metadata(total_chunks=total_chunks)
+    
