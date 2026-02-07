@@ -80,39 +80,55 @@ class Chunker:
         for i, chunk_text in enumerate(chunks):
             result.append({
                 'text': chunk_text,
-                'metadata': self._create_metadata(filepath, chunk_text, i, len(chunks))
+                'metadata': self._create_metadata(filepath, chunk_text, i, len(chunks), full_content=content)
             })
         
         return result
         
     
-    def _create_metadata(self, filepath: Path, chunk_text: str, chunk_id: int, total_chunks: int) -> Dict:
+    def _create_metadata(self, filepath: Path, chunk_text: str, chunk_id: int, total_chunks: int, full_content: str = None) -> Dict:
         """Create rich metadata for bug tracing"""
-        metadata = {
-            # File context
-            'file': str(filepath),
-            'file_name': filepath.name,
-            'file_type': filepath.suffix.lstrip('.'),
-            
-            # Chunk context
-            'chunk_id': chunk_id,
-            'total_chunks': total_chunks,
-            'chunk_hash': hashlib.md5(chunk_text.encode()).hexdigest()[:16],
-            
-            # Code analysis (for bug tracing)
-            'has_error_handling': self._has_error_handling(chunk_text),
-            'has_logging': self._has_logging(chunk_text),
-            'has_todo': self._has_todo(chunk_text),
-            'has_fixme': self._has_fixme(chunk_text),
-            'line_count': chunk_text.count('\n') + 1,
-        }
-        
-        # Add language-specific metadata
-        if filepath.suffix == '.py':
-            metadata.update(self._extract_python_metadata(chunk_text))
-        
-        return metadata
+
+        line_start = None
+        line_end = None
     
+        if full_content:
+            # Find where this chunk appears in the full content
+            chunk_start_pos = full_content.find(chunk_text)
+            if chunk_start_pos != -1:
+                # Count newlines before this chunk
+                line_start = full_content[:chunk_start_pos].count('\n') + 1
+                # Count newlines in this chunk
+                line_end = line_start + chunk_text.count('\n')
+            metadata = {
+                # File context
+                'file': str(filepath),
+                'file_name': filepath.name,
+                'file_type': filepath.suffix.lstrip('.'),
+                
+                # Chunk context
+                'chunk_id': chunk_id,
+                'total_chunks': total_chunks,
+                'chunk_hash': hashlib.md5(chunk_text.encode()).hexdigest()[:16],
+
+                # ✅ Line numbers (NEW)
+                'line_start': line_start,
+                'line_end': line_end,
+                
+                # Code analysis (for bug tracing)
+                'has_error_handling': self._has_error_handling(chunk_text),
+                'has_logging': self._has_logging(chunk_text),
+                'has_todo': self._has_todo(chunk_text),
+                'has_fixme': self._has_fixme(chunk_text),
+                'line_count': chunk_text.count('\n') + 1,
+            }
+            
+            # Add language-specific metadata
+            if filepath.suffix == '.py':
+                metadata.update(self._extract_python_metadata(chunk_text))
+            
+            return metadata
+        
     def _has_error_handling(self, text: str) -> bool:
         """Check if chunk has error handling"""
         patterns = [
