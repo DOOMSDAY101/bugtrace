@@ -102,6 +102,7 @@ class VectorStore:
         Args:
             filepath: Path to file whose chunks should be deleted
         """
+        filepath = str(Path(filepath).resolve())
         # Query all chunks from this file
         try:
             all_data = self.vector_store.get()

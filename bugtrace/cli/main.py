@@ -1,60 +1,3 @@
-# # bugtrace/cli/main.py
-# import os
-# from pathlib import Path
-# from rich.console import Console
-# import typer
-# from rich.panel import Panel
-# from rich.align import Align
-# from pyfiglet import Figlet
-
-# console = Console() 
-
-# # from bugtrace.config.settings import load_settings
-# # from bugtrace.agent.debugger_agent import DebuggerAgent
-
-# app = typer.Typer(help="Bugtrace - AI-powered debugging assistant")
-
-# # @app.command()
-# # def analyze(
-# #     bug_description: str = typer.Argument(..., help="Brief description of the bug"),
-# #     path: str = typer.Option(".", "--path", "-p", help="Project root path"),
-# #     logs: str = typer.Option("", "--logs", "-l", help="Optional log directory"),
-# # ):
-# #     """
-# #     Analyze a bug in your project.
-# #     """
-# #     # Resolve paths
-# #     project_path = Path(path).resolve()
-# #     log_path = Path(logs).resolve() if logs else None
-
-# #     # Load configuration (YAML + .env)
-# #     settings = load_settings()
-
-# #     # Override project/log paths if user provided
-# #     settings.paths.project_root = str(project_path)
-# #     if log_path:
-# #         settings.paths.logs = [str(log_path)]
-
-# #     # Optional: get API key from environment if not in config
-# #     if not settings.llm.api_key:
-# #         settings.llm.api_key = os.getenv("BUGTRACE_OPENAI_API_KEY")
-# #         if not settings.llm.api_key:
-# #             typer.echo("❌ No API key found. Set it in .env or config.", err=True)
-# #             raise typer.Exit(code=1)
-
-# #     # Initialize the agent
-# #     agent = DebuggerAgent(settings)
-
-# #     # Run the analysis
-# #     typer.echo("🔍 Running Bugtrace...")
-# #     report = agent.run(project_path, bug_description)
-
-# #     # Print the report
-# #     typer.echo("\n📊 Bugtrace Report")
-# #     typer.echo("-------------------")
-# #     typer.echo(report)
-
-
 import os
 from pathlib import Path
 from rich.console import Console
@@ -66,7 +9,6 @@ from rich.text import Text
 from rich import box
 from bugtrace.utils.fs import ensure_state_dir
 from bugtrace.config.settings import create_default_config
-from bugtrace.analyze.core import analyze
 import shutil
 
 
@@ -272,8 +214,9 @@ def scan(
     )
 ):
     """Scan project files and update manifest."""
+    from bugtrace.analyze.core import scan_project
     project_root = path or Path.cwd()
-    analyze(project_root)
+    scan_project(project_root)
 
 @app.command()
 def index(
@@ -427,6 +370,26 @@ def status(
     console.print(table)
     console.print()
 
+
+@app.command()
+def analyze(
+    bug_description: str = typer.Argument(..., help="Description of the bug"),
+    path: str = typer.Option(".", "--path", "-p", help="Project root path"),
+    top_k: int = typer.Option(6, "--top-k", "-k", help="Number of results to show"),
+):
+    """
+    Analyze a bug by finding relevant code chunks.
+    """
+    from bugtrace.analyze.bug_analyzer import analyze_bug
+    from pathlib import Path
+    
+    project_root = Path(path).resolve()
+    
+    try:
+        analyze_bug(project_root, bug_description, top_k)
+    except Exception as e:
+        console.print(f"\n[bold red]❌ Analysis failed:[/bold red] {e}")
+        raise typer.Exit(code=1)
 
 def run():
     app()

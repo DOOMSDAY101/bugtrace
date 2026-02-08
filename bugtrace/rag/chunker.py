@@ -102,7 +102,7 @@ class Chunker:
                 line_end = line_start + chunk_text.count('\n')
             metadata = {
                 # File context
-                'file': str(filepath),
+                'file': str(filepath.resolve()),
                 'file_name': filepath.name,
                 'file_type': filepath.suffix.lstrip('.'),
                 

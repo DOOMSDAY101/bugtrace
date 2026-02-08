@@ -37,7 +37,7 @@ def index_project(project_root: Path, force: bool = False):
     manifest_path = state_dir / "manifest.json"
     
 
-    from bugtrace.analyze.core import analyze as scan_project
+    from bugtrace.analyze.core import scan_project
     scan_project(project_root)
     console.print("   [green]✓ Scan complete[/green]\n")
     
@@ -105,8 +105,6 @@ def index_project(project_root: Path, force: bool = False):
     console.print("[bold]Building embeddings...[/bold]")
     
     try:
-        # This is where you'll add the actual embedding generation in Timeline 3
-        # For now, we'll simulate it
         _build_embeddings(files_to_index, config, index_dir, state_manager)
         
         # Step 8: Update state after successful indexing
@@ -126,68 +124,6 @@ def index_project(project_root: Path, force: bool = False):
     except Exception as e:
         console.print(f"\n[bold red]❌ Indexing failed:[/bold red] {e}")
         raise
-
-
-def ensure_project_indexed(project_root: Path):
-    """
-    Ensures project is scanned and indexed. Used by analyze command.
-    This is the auto-detection logic that makes analyze "just work".
-    """
-    state_dir = ensure_state_dir(project_root)
-    state_manager = StateManager(state_dir)
-    manifest_path = state_dir / "manifest.json"
-    
-    needs_scan = False
-    needs_index = False
-    
-    # Check if scan is needed
-    if not manifest_path.exists():
-        needs_scan = True
-        console.print("[yellow]⚠ Project not scanned. Running scan...[/yellow]")
-    else:
-        # Check if manifest is outdated (you could add more sophisticated checking)
-        manifest = load_manifest(state_dir)
-        if not manifest:
-            needs_scan = True
-            console.print("[yellow]⚠ Manifest is empty. Running scan...[/yellow]")
-    
-    # Run scan if needed
-    if needs_scan:
-        from bugtrace.analyze.core import analyze as scan_project
-        scan_project(project_root)
-        console.print()
-    
-    # Check if index is needed
-    manifest = load_manifest(state_dir)
-    
-    # Check if index exists
-    index_dir = state_dir / "index"
-    if not index_dir.exists() or not any(index_dir.iterdir()):
-        needs_index = True
-        console.print("[yellow]⚠ No index found. Building index...[/yellow]\n")
-    else:
-        # Check if config changed
-        config = load_user_config(project_root)
-        current_config_hash = hash_config(config)
-        
-        if state_manager.config_changed(current_config_hash):
-            needs_index = True
-            console.print("[yellow]⚠ Configuration changed. Rebuilding index...[/yellow]\n")
-        else:
-            # Check if there are new/changed files
-            files_to_index = state_manager.get_files_to_index(manifest)
-            
-            if files_to_index:
-                needs_index = True
-                console.print(f"[yellow]⚠ {len(files_to_index)} files changed. Updating index...[/yellow]\n")
-    
-    # Run index if needed
-    if needs_index:
-        index_project(project_root, force=False)
-        console.print()
-    else:
-        console.print("[green]✓ Project index is up to date[/green]\n")
-
 
 def _build_embeddings(
     files_to_index: Dict[str, str],

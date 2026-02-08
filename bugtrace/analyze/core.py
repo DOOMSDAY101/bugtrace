@@ -9,9 +9,13 @@ from rich.console import Console
 console = Console()
 
 
-def analyze(project_root: Path = None):
-    project_root = project_root or Path.cwd()
-
+def scan_project(project_root: Path = None):
+    if project_root is None:
+        project_root = Path.cwd()
+    elif isinstance(project_root, str):
+        project_root = Path(project_root).resolve()
+    elif isinstance(project_root, Path):
+            project_root = project_root.resolve()
     # Ensure .bugtrace exists
     state_dir = ensure_state_dir(project_root)
 
