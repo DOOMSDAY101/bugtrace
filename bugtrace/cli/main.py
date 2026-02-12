@@ -376,6 +376,16 @@ def analyze(
     bug_description: str = typer.Argument(..., help="Description of the bug"),
     path: str = typer.Option(".", "--path", "-p", help="Project root path"),
     top_k: int = typer.Option(6, "--top-k", "-k", help="Number of results to show"),
+    show_code: bool = typer.Option(False, "--show-code", "-c", help="Show retrieved code chunks before analysis"),
+    mode: str = typer.Option(
+        "debug", "--mode", "-m", help="Analysis mode: debug, explain, review, or security"
+    ),
+    no_stream: bool = typer.Option(
+        False, "--no-stream", help="Disable streaming of LLM output; show full response at once"
+    ),
+    export_md: str = typer.Option(
+        None, "--export-md", help="Path to export the analysis report as a Markdown file"
+    ),
 ):
     """
     Analyze a bug by finding relevant code chunks.
@@ -385,8 +395,22 @@ def analyze(
     
     project_root = Path(path).resolve()
     
+    from bugtrace.utils.files import resolve_markdown_path
+
+    export_path = None
+    if export_md is not None:
+        export_path = resolve_markdown_path(export_md)
+    
     try:
-        analyze_bug(project_root, bug_description, top_k)
+        analyze_bug(
+        project_root,
+        bug_description,
+        top_k,
+        show_code,
+        mode=mode,
+        stream=not no_stream,
+        export_markdown=export_path,
+)
     except Exception as e:
         console.print(f"\n[bold red]❌ Analysis failed:[/bold red] {e}")
         raise typer.Exit(code=1)

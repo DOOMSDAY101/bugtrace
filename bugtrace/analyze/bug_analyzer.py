@@ -9,15 +9,33 @@ from bugtrace.rag.embeddings import get_embedder
 from bugtrace.rag.vector_store import VectorStore
 from bugtrace.config.settings import load_user_config
 from bugtrace.rag.indexer import index_project 
+from bugtrace.llm.ollama import OllamaLLM
+from bugtrace.llm.base import LLMConfig
+
+from bugtrace.agent.orchestrator import Orchestrator
+from bugtrace.report.report_formatter import ReportFormatter
 
 console = Console()
 
 
-def analyze_bug(project_root: Path, bug_description: str, top_k: int = 6):
+def analyze_bug(project_root: Path, bug_description: str, top_k: int = 6, show_code: bool = False, mode: str = "debug",
+    stream: bool = True,
+    export_markdown: str | None = None,):
     """
-    Analyze a bug by finding relevant code chunks.
+    Analyze a bug using RAG + LLM.
     Auto-scans and indexes if needed.
+    
+    Args:
+        project_root: Project root directory
+        bug_description: User's bug description
+        top_k: Number of code chunks to retrieve
+        show_code: If True, displays retrieved code chunks before analysis
     """
+    valid_modes = {"debug", "explain", "review", "security"}
+    if mode not in valid_modes:
+        raise ValueError(
+            f"Invalid mode '{mode}'. Must be one of: {', '.join(valid_modes)}"
+        )
     console.print(f"\n[bold cyan]🔍 Analyzing:[/bold cyan] {bug_description}\n")
     
      # Single source of truth
@@ -44,8 +62,56 @@ def analyze_bug(project_root: Path, bug_description: str, top_k: int = 6):
     # Display results
     console.print(f"[bold green]Found {len(results)} relevant code chunks:[/bold green]\n")
     
-    for i, result in enumerate(results, 1):
-        display_result(result, i, len(results))
+    # Optional - Show retrieved code
+    if show_code:
+        console.print("[bold]Retrieved Code Chunks:[/bold]\n")
+        for i, result in enumerate(results, 1):
+            display_result(result, i, len(results))
+        console.print("\n" + "=" * 100 + "\n")
+
+     # Initialize LLM Agent
+    from bugtrace.llm import get_llm
+
+    console.print("[dim]Initializing AI analysis...[/dim]")
+    try:
+        llm = get_llm(config)
+        console.print(
+           f"[dim]Using {llm.config.provider} model: {llm.get_model_name()} "
+            f"(temp={llm.temperature})[/dim]\n"
+        )
+    except Exception as e:
+        console.print(f"[red]✗ Failed to initialize LLM:[/red] {e}")
+        console.print("[yellow]Make sure Ollama is running and the model is pulled.[/yellow]")
+        return
+    
+    orchestrator = Orchestrator(
+        llm=llm,
+        stream=stream,
+        mode=mode,
+    )
+
+    # Step 7: Run LLM analysis
+    try:
+        result = orchestrator.analyze(
+            query=bug_description,
+            search_results=results,
+            max_chunks=top_k,
+        )
+    except Exception as e:
+        console.print(f"[red]✗ Analysis failed:[/red] {e}")
+        return
+
+    # Display results
+    formatter = ReportFormatter()
+    formatter.display_report(result)
+
+    # Markdown export (side-effect)
+    
+    if export_markdown:
+        formatter.export_markdown(result, export_markdown)
+        console.print(
+            f"\n[green]📄 Report exported to:[/green] {export_markdown}"
+        )
 
 def display_result(result: Dict, index: int, total: int):
     """Display a single search result with rich formatting."""
