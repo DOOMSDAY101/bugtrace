@@ -110,23 +110,24 @@ class Orchestrator:
             # Step 3: Get LLM analysis
             response = self._run_llm_analysis(messages)
 
-            with self.reporter.section("Validating proposed fix"):
-                try:
-                    context_text = self.context_builder.format_context_for_prompt(context)
+            #TODO make sure to fix this later
+            # with self.reporter.section("Validating proposed fix"):
+            #     try:
+            #         context_text = self.context_builder.format_context_for_prompt(context)
 
-                    validated_response = self.fix_validator.validate(
-                        context_text=context_text,
-                        original_response=response,
-                    )
+            #         validated_response = self.fix_validator.validate(
+            #             context_text=context_text,
+            #             original_response=response,
+            #         )
 
-                    response = validated_response
-                    self.reporter.success("Fix validation complete")
+            #         response = validated_response
+            #         self.reporter.success("Fix validation complete")
 
-                except Exception as e:
-                    self.reporter.warning(
-                        "Fix validation failed, using original analysis"
-                    )
-                    self.reporter.warning(str(e))
+            #     except Exception as e:
+            #         self.reporter.warning(
+            #             "Fix validation failed, using original analysis"
+            #         )
+            #         self.reporter.warning(str(e))
             
             # Step 4: Build result
             result = {
@@ -138,7 +139,7 @@ class Orchestrator:
                     "model": self.llm.model,
                     "chunks_analyzed": len(context["code_snippets"]),
                     "files_analyzed": context["summary"]["total_files"],
-                    "validated": True,
+                    # "validated": True,
                 }
             }
             
