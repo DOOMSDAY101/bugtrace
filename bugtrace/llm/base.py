@@ -82,6 +82,16 @@ class BaseLLM(ABC):
         Override in subclasses if needed.
         """
         return [{"role": msg.role, "content": msg.content} for msg in messages]
+    
+    def get_langchain_llm(self):
+        """
+        Get LangChain-compatible LLM wrapper.
+        
+        Returns:
+            LangChain LLM instance for use with agents/chains
+        """
+        from .langchain_wrapper import get_langchain_llm
+        return get_langchain_llm(self)
 
     @abstractmethod
     def get_model_name(self) -> str:

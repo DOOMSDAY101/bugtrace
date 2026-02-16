@@ -10,6 +10,9 @@ from rich import box
 from bugtrace.utils.fs import ensure_state_dir
 from bugtrace.config.settings import create_default_config
 import shutil
+from typing import Optional
+
+from .session import session_command
 
 
 
@@ -415,5 +418,41 @@ def analyze(
         console.print(f"\n[bold red]❌ Analysis failed:[/bold red] {e}")
         raise typer.Exit(code=1)
 
+
+@app.command()
+def session(
+    bug_description: Optional[str] = typer.Argument(
+        None,
+        help="Optional initial bug description"
+    ),
+    path: str = typer.Option(".", "--path", "-p", help="Project root path"),
+):
+    """
+    Start interactive debugging session.
+    
+    Provides conversational interface for exploring and fixing bugs.
+    Agent can search codebase dynamically and remember conversation context.
+    
+    Examples:
+        bugtrace session "login fails intermittently"
+        bugtrace session  # Exploratory mode without initial query
+    
+    Commands during session:
+        \\q - Quit session
+    """
+    from pathlib import Path
+    
+    project_root = Path(path).resolve()
+    try:
+        session_command(bug_description, project_root)
+    except Exception as e:
+        console.print(f"\n[bold red]❌ Session failed:[/bold red] {e}")
+        raise typer.Exit(code=1)
+
+
 def run():
     app()
+
+
+if __name__ == "__main__":
+    main()

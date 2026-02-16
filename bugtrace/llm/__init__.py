@@ -49,4 +49,5 @@ __all__ = [
     "LLMConnectionError",
     "LLMModelNotFoundError",
     "OllamaLLM",
+    "get_llm"
 ]

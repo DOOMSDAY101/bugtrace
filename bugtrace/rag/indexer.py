@@ -19,52 +19,167 @@ def hash_config(config: dict) -> str:
     return hashlib.sha256(config_str.encode()).hexdigest()
 
 
-def index_project(project_root: Path, force: bool = False):
+# def index_project(project_root: Path, force: bool = False, verbose: bool = True):
+#     """
+#     Main indexing function with full state management.
+    
+#     Args:
+#         project_root: Root directory of the project
+#         force: If True, forces full re-index regardless of state
+#     """
+#     console.print("[bold]Building RAG Index[/bold]\n")
+    
+#     state_dir = ensure_state_dir(project_root)
+#     state_manager = StateManager(state_dir)
+    
+#     # Step 1: Check if manifest exists
+#     console.print("[dim]1. Checking project scan status...[/dim]")
+#     manifest_path = state_dir / "manifest.json"
+    
+
+#     from bugtrace.analyze.core import scan_project
+#     scan_project(project_root)
+#     console.print("   [green]✓ Scan complete[/green]\n")
+    
+#     # Step 2: Load and validate config
+#     console.print("[dim]2. Loading configuration...[/dim]")
+#     config = load_user_config(project_root)
+    
+#     try:
+#         validate_config(config)
+#         console.print("   [green]✓ Configuration valid[/green]")
+#     except ValueError as e:
+#         console.print(f"   [red]✗ Invalid configuration:[/red]\n{e}")
+#         raise
+    
+#     # Step 3: Check for config changes
+#     console.print("[dim]3. Checking for configuration changes...[/dim]")
+#     current_config_hash = hash_config(config)
+#     config_changed = state_manager.config_changed(current_config_hash)
+    
+#     if config_changed:
+#         console.print("   [yellow]⚠ Configuration changed - full re-index required[/yellow]")
+#         force = True  # Config change forces full re-index
+#     else:
+#         console.print("   [green]✓ Configuration unchanged[/green]")
+    
+#     # Step 4: Load manifest and determine what to index
+#     console.print("[dim]4. Analyzing files to index...[/dim]")
+#     manifest = load_manifest(state_dir)
+    
+#     if not manifest:
+#         console.print("   [red]✗ Manifest is empty. Nothing to index.[/red]")
+#         return
+    
+#     if force:
+#         files_to_index = manifest
+#         console.print(f"   [yellow]→ Full re-index: {len(files_to_index)} files[/yellow]")
+#     else:
+#         files_to_index = state_manager.get_files_to_index(manifest)
+        
+#         if not files_to_index:
+#             console.print("   [green]✓ All files already indexed - nothing to do![/green]")
+#             console.print(f"\n[bold green]✅ Index is up to date![/bold green]")
+#             console.print(f"   • Total indexed files: {len(manifest)}")
+#             return
+        
+#         console.print(f"   [cyan]→ Incremental index: {len(files_to_index)} files need updating[/cyan]")
+    
+#     # Step 5: Ensure index directory exists
+#     console.print("[dim]5. Preparing index directory...[/dim]")
+#     index_dir = state_dir / "index"
+#     index_dir.mkdir(exist_ok=True)
+#     console.print(f"   [green]✓ Index directory ready[/green]")
+    
+#     # Step 6: Display indexing summary
+#     console.print("\n[bold cyan]Indexing Summary:[/bold cyan]")
+#     console.print(f"  • Total tracked files: {len(manifest)}")
+#     console.print(f"  • Files to index: {len(files_to_index)}")
+#     console.print(f"  • Already indexed: {len(manifest) - len(files_to_index)}")
+#     console.print(f"  • Index mode: {'[yellow]Full re-index[/yellow]' if force else '[cyan]Incremental[/cyan]'}")
+#     console.print(f"  • Chunk size: {config['rag']['chunk_size']}")
+#     console.print(f"  • Vector store: {config['rag']['store']}")
+#     console.print()
+    
+#     # Step 7: Perform the actual indexing (Timeline 3 - you'll implement this)
+#     console.print("[bold]Building embeddings...[/bold]")
+    
+#     try:
+#         _build_embeddings(files_to_index, config, index_dir, state_manager)
+        
+#         # Step 8: Update state after successful indexing
+#         state_manager.mark_files_indexed(files_to_index)
+#         state_manager.update_config_hash(current_config_hash)
+#         state_manager.update_index_time()
+#         state_manager.update_metadata(
+#             total_files=len(manifest),
+#             total_chunks=len(files_to_index) * 10  # Placeholder ## TODO change this later
+#         )
+        
+#         console.print(f"\n[bold green]✅ Indexing complete![/bold green]")
+#         console.print(f"   • Indexed: {len(files_to_index)} files")
+#         console.print(f"   • Total in index: {len(manifest)} files")
+#         console.print(f"   • Index location: {index_dir}")
+        
+#     except Exception as e:
+#         console.print(f"\n[bold red]❌ Indexing failed:[/bold red] {e}")
+#         raise
+
+def index_project(project_root: Path, force: bool = False, verbose: bool = True):
     """
     Main indexing function with full state management.
     
     Args:
         project_root: Root directory of the project
         force: If True, forces full re-index regardless of state
+        verbose: If True, shows detailed progress. If False, minimal output.
     """
-    console.print("[bold]Building RAG Index[/bold]\n")
+    if verbose:
+        console.print("[bold]Building RAG Index[/bold]\n")
     
     state_dir = ensure_state_dir(project_root)
     state_manager = StateManager(state_dir)
     
     # Step 1: Check if manifest exists
-    console.print("[dim]1. Checking project scan status...[/dim]")
+    if verbose:
+        console.print("[dim]1. Checking project scan status...[/dim]")
     manifest_path = state_dir / "manifest.json"
     
-
     from bugtrace.analyze.core import scan_project
-    scan_project(project_root)
-    console.print("   [green]✓ Scan complete[/green]\n")
+    scan_project(project_root, verbose=verbose)
+    if verbose:
+        console.print("   [green]✓ Scan complete[/green]\n")
     
     # Step 2: Load and validate config
-    console.print("[dim]2. Loading configuration...[/dim]")
+    if verbose:
+        console.print("[dim]2. Loading configuration...[/dim]")
     config = load_user_config(project_root)
     
     try:
         validate_config(config)
-        console.print("   [green]✓ Configuration valid[/green]")
+        if verbose:
+            console.print("   [green]✓ Configuration valid[/green]")
     except ValueError as e:
         console.print(f"   [red]✗ Invalid configuration:[/red]\n{e}")
         raise
     
     # Step 3: Check for config changes
-    console.print("[dim]3. Checking for configuration changes...[/dim]")
+    if verbose:
+        console.print("[dim]3. Checking for configuration changes...[/dim]")
     current_config_hash = hash_config(config)
     config_changed = state_manager.config_changed(current_config_hash)
     
     if config_changed:
-        console.print("   [yellow]⚠ Configuration changed - full re-index required[/yellow]")
+        if verbose:
+            console.print("   [yellow]⚠ Configuration changed - full re-index required[/yellow]")
         force = True  # Config change forces full re-index
     else:
-        console.print("   [green]✓ Configuration unchanged[/green]")
+        if verbose:
+            console.print("   [green]✓ Configuration unchanged[/green]")
     
     # Step 4: Load manifest and determine what to index
-    console.print("[dim]4. Analyzing files to index...[/dim]")
+    if verbose:
+        console.print("[dim]4. Analyzing files to index...[/dim]")
     manifest = load_manifest(state_dir)
     
     if not manifest:
@@ -73,39 +188,46 @@ def index_project(project_root: Path, force: bool = False):
     
     if force:
         files_to_index = manifest
-        console.print(f"   [yellow]→ Full re-index: {len(files_to_index)} files[/yellow]")
+        if verbose:
+            console.print(f"   [yellow]→ Full re-index: {len(files_to_index)} files[/yellow]")
     else:
         files_to_index = state_manager.get_files_to_index(manifest)
         
         if not files_to_index:
-            console.print("   [green]✓ All files already indexed - nothing to do![/green]")
-            console.print(f"\n[bold green]✅ Index is up to date![/bold green]")
-            console.print(f"   • Total indexed files: {len(manifest)}")
+            if verbose:
+                console.print("   [green]✓ All files already indexed - nothing to do![/green]")
+                console.print(f"\n[bold green]✅ Index is up to date![/bold green]")
+                console.print(f"   • Total indexed files: {len(manifest)}")
             return
         
-        console.print(f"   [cyan]→ Incremental index: {len(files_to_index)} files need updating[/cyan]")
+        if verbose:
+            console.print(f"   [cyan]→ Incremental index: {len(files_to_index)} files need updating[/cyan]")
     
     # Step 5: Ensure index directory exists
-    console.print("[dim]5. Preparing index directory...[/dim]")
+    if verbose:
+        console.print("[dim]5. Preparing index directory...[/dim]")
     index_dir = state_dir / "index"
     index_dir.mkdir(exist_ok=True)
-    console.print(f"   [green]✓ Index directory ready[/green]")
+    if verbose:
+        console.print(f"   [green]✓ Index directory ready[/green]")
     
     # Step 6: Display indexing summary
-    console.print("\n[bold cyan]Indexing Summary:[/bold cyan]")
-    console.print(f"  • Total tracked files: {len(manifest)}")
-    console.print(f"  • Files to index: {len(files_to_index)}")
-    console.print(f"  • Already indexed: {len(manifest) - len(files_to_index)}")
-    console.print(f"  • Index mode: {'[yellow]Full re-index[/yellow]' if force else '[cyan]Incremental[/cyan]'}")
-    console.print(f"  • Chunk size: {config['rag']['chunk_size']}")
-    console.print(f"  • Vector store: {config['rag']['store']}")
-    console.print()
+    if verbose:
+        console.print("\n[bold cyan]Indexing Summary:[/bold cyan]")
+        console.print(f"  • Total tracked files: {len(manifest)}")
+        console.print(f"  • Files to index: {len(files_to_index)}")
+        console.print(f"  • Already indexed: {len(manifest) - len(files_to_index)}")
+        console.print(f"  • Index mode: {'[yellow]Full re-index[/yellow]' if force else '[cyan]Incremental[/cyan]'}")
+        console.print(f"  • Chunk size: {config['rag']['chunk_size']}")
+        console.print(f"  • Vector store: {config['rag']['store']}")
+        console.print()
     
-    # Step 7: Perform the actual indexing (Timeline 3 - you'll implement this)
-    console.print("[bold]Building embeddings...[/bold]")
+    # Step 7: Perform the actual indexing
+    if verbose:
+        console.print("[bold]Building embeddings...[/bold]")
     
     try:
-        _build_embeddings(files_to_index, config, index_dir, state_manager)
+        _build_embeddings(files_to_index, config, index_dir, state_manager, verbose=verbose)
         
         # Step 8: Update state after successful indexing
         state_manager.mark_files_indexed(files_to_index)
@@ -116,10 +238,11 @@ def index_project(project_root: Path, force: bool = False):
             total_chunks=len(files_to_index) * 10  # Placeholder ## TODO change this later
         )
         
-        console.print(f"\n[bold green]✅ Indexing complete![/bold green]")
-        console.print(f"   • Indexed: {len(files_to_index)} files")
-        console.print(f"   • Total in index: {len(manifest)} files")
-        console.print(f"   • Index location: {index_dir}")
+        if verbose:
+            console.print(f"\n[bold green]✅ Indexing complete![/bold green]")
+            console.print(f"   • Indexed: {len(files_to_index)} files")
+            console.print(f"   • Total in index: {len(manifest)} files")
+            console.print(f"   • Index location: {index_dir}")
         
     except Exception as e:
         console.print(f"\n[bold red]❌ Indexing failed:[/bold red] {e}")
@@ -129,7 +252,8 @@ def _build_embeddings(
     files_to_index: Dict[str, str],
     config: dict,
     index_dir: Path,
-    state_manager: StateManager
+    state_manager: StateManager,
+    verbose: bool = True
 ):
     """
     Build embeddings for files and store in vector database.
@@ -150,11 +274,14 @@ def _build_embeddings(
         return
 
     # Initialize components
-    console.print("[dim]Initializing embedding system...[/dim]")
+
+    if verbose:
+        console.print("[dim]Initializing embedding system...[/dim]")
     
     try:
         embedder = get_embedder(config)
-        console.print(f"   [green]✓ Embedder ready (dimension: {embedder.get_dimension()})[/green]")
+        if verbose:
+            console.print(f"   [green]✓ Embedder ready (dimension: {embedder.get_dimension()})[/green]")
     except Exception as e:
         console.print(f"   [red]✗ Failed to initialize embedder: {e}[/red]")
         raise
@@ -176,7 +303,8 @@ def _build_embeddings(
     embedder = get_embedder(config)
     
     vector_store = VectorStore(index_dir, project_root, embedder=embedder)
-    console.print(f"   [green]✓ Vector store ready: {vector_store.collection_name}[/green]\n")
+    if verbose:
+        console.print(f"   [green]✓ Vector store ready: {vector_store.collection_name}[/green]\n")
     
 
 # Process files with progress
@@ -227,8 +355,8 @@ def _build_embeddings(
                 console.print(f"   [yellow]⚠ Error processing {filepath.name}: {e}[/yellow]")
             
             progress.advance(task)
-        
-        progress.update(task, description=f"[green]✓ Completed: {total_chunks} chunks indexed")
+        if verbose:
+            progress.update(task, description=f"[green]✓ Completed: {total_chunks} chunks indexed")
     # Update state metadata with actual chunk count
     state_manager.update_metadata(total_chunks=total_chunks)
     

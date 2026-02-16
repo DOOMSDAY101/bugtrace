@@ -9,7 +9,7 @@ from rich.console import Console
 console = Console()
 
 
-def scan_project(project_root: Path = None):
+def scan_project(project_root: Path = None, verbose: bool = True):
     if project_root is None:
         project_root = Path.cwd()
     elif isinstance(project_root, str):
@@ -27,7 +27,8 @@ def scan_project(project_root: Path = None):
     try:
         from bugtrace.config.settings import validate_config
         validate_config(config)
-        console.print("[green]✓ Configuration valid[/green]")
+        if verbose:
+            console.print("[green]✓ Configuration valid[/green]")
     except ValueError as e:
         console.print(f"[red]✗ Invalid configuration: {e}[/red]")
         raise
@@ -36,36 +37,29 @@ def scan_project(project_root: Path = None):
     ignore = config.get("paths", {}).get("ignore", [])
 
     # Walk project files
-    console.print("[dim]Scanning project files...[/dim]")
+    if verbose:
+        console.print("[dim]Scanning project files...[/dim]")
     all_files = walk_project(project_root, ignore=ignore)
 
     # Hash & update manifest
-    console.print("[dim]Updating manifest...[/dim]")
+    if verbose:
+        console.print("[dim]Updating manifest...[/dim]")
     stats = update_manifest(state_dir, all_files)
 
     # Print summary
-    console.print(f"\n[bold green]✔ Project scanned:[/bold green] {len(all_files)} files tracked")
-    
-    # if stats['new'] > 0:
-    #     console.print(f"   [green]• New:[/green] {stats['new']}")
-    # if stats['changed'] > 0:
-    #     console.print(f"   [yellow]• Changed:[/yellow] {stats['changed']}")
-    # if stats['unchanged'] > 0:
-    #     console.print(f"   [dim]• Unchanged:[/dim] {stats['unchanged']}")
-    # if stats['removed'] > 0:
-    #     console.print(f"   [red]• Removed:[/red] {stats['removed']} (deleted or now ignored)")
-    
-    # console.print()
+    if verbose:
+        console.print(f"\n[bold green]✔ Project scanned:[/bold green] {len(all_files)} files tracked")
 
-    console.print(
-        "\n".join(
-            [
-                f"[green]• New:[/green] {stats['new']}",
-                f"[yellow]• Changed:[/yellow] {stats['changed']}",
-                f"[dim]• Unchanged:[/dim] {stats['unchanged']}",
-                f"[red]• Removed:[/red] {stats['removed']} (deleted or now ignored)",
-            ]
+    if verbose:
+        console.print(
+            "\n".join(
+                [
+                    f"[green]• New:[/green] {stats['new']}",
+                    f"[yellow]• Changed:[/yellow] {stats['changed']}",
+                    f"[dim]• Unchanged:[/dim] {stats['unchanged']}",
+                    f"[red]• Removed:[/red] {stats['removed']} (deleted or now ignored)",
+                ]
+            )
         )
-    )
     # ✅ Update scan timestamp in state
     state_manager.update_scan_time()

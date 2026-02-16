@@ -135,12 +135,17 @@ class OllamaLLM(BaseLLM):
     def is_available(self) -> bool:
         """Check if Ollama is running and model exists."""
         try:
-            models = ollama.list()
-            model_names = [m["name"] for m in models.get("models", [])]
-            return any(self.model in name for name in model_names)
+            response = ollama.list()
+            models = response.get("models", [])
+            
+            # Use .model attribute, not ["name"] key!
+            model_names = [m.model for m in models]
+            
+            # Check if our model is in the list
+            return self.model in model_names
+            
         except Exception:
-            return False
-        
+            return False  
 
     def list_models(self) -> List[str]:
         """List available Ollama models."""
