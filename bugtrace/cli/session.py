@@ -121,12 +121,10 @@ def session_command(
 
 
 def run_session_loop(agent: SessionAgent):
-    """
-    Run the interactive session loop.
+    """Run the interactive session loop with streaming."""
+    from rich.spinner import Spinner
+    from rich.live import Live
     
-    Args:
-        agent: SessionAgent instance
-    """
     while True:
         try:
             # Get user input
@@ -141,20 +139,48 @@ def run_session_loop(agent: SessionAgent):
             if not user_input:
                 continue
             
-            # Show thinking indicator
-            console.print("\n[dim]🤔 Agent thinking...[/dim]")
+            # Show spinner while waiting
+            spinner = Spinner("dots", text="Responding...")
             
-            # Get agent response
-            result = agent.chat(user_input)
-            
-            # Display thinking process (intermediate steps)
-            if result.get('intermediate_steps'):
-                display_thinking(result['intermediate_steps'])
-            
-            # Display final answer
-            final_answer = result.get('output', 'No response')
-            console.print(f"\n[bold green]💡 Agent:[/bold green]")
-            console.print(final_answer)
+            try:
+                from ..llm.base import Message
+                
+                messages = [Message(role="system", content=agent.system_prompt)]
+                
+                # Add history
+                for entry in agent.history[-5:]:
+                    messages.append(Message(role="user", content=entry['user']))
+                    messages.append(Message(role="assistant", content=entry['assistant']))
+                
+                messages.append(Message(role="user", content=user_input))
+                
+                # Start streaming
+                stream = agent.llm.chat_stream(messages)
+                
+                # Show spinner until first token
+                with Live(spinner, console=console, transient=True):
+                    first_token = next(stream)
+                
+                # Show Agent label and first token
+                console.print()  
+                console.print(f"[bold green]💡 Agent:[/bold green] ", end="")  # No \n here
+                console.print(first_token, end="")
+                # Continue streaming rest of tokens
+                full_response = [first_token]
+                for token in stream:
+                    console.print(token, end="")
+                    full_response.append(token)
+                console.print()  # New line
+                
+                # Save to history
+                response_text = "".join(full_response)
+                agent.history.append({
+                    'user': user_input,
+                    'assistant': response_text
+                })
+                
+            except Exception as e:
+                console.print(f"\n[red]Error:[/red] {e}")
         
         except KeyboardInterrupt:
             console.print("\n\n[yellow]👋 Session interrupted[/yellow]")
@@ -163,7 +189,6 @@ def run_session_loop(agent: SessionAgent):
         except Exception as e:
             console.print(f"\n[red]Error:[/red] {e}")
             console.print("[dim]Type \\q to quit[/dim]")
-
 
 def display_thinking(intermediate_steps: list):
     """
