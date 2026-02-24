@@ -81,7 +81,14 @@ class BaseLLM(ABC):
         Convert Message objects to provider-specific format.
         Override in subclasses if needed.
         """
-        return [{"role": msg.role, "content": msg.content} for msg in messages]
+        prepared = []
+        for msg in messages:
+            if hasattr(msg, "role") and hasattr(msg, "content"):
+                prepared.append({"role": msg.role, "content": msg.content})
+            else:
+                # fallback: treat unknown as user
+                prepared.append({"role": "user", "content": str(msg)})
+        return prepared
     
     def get_langchain_llm(self):
         """

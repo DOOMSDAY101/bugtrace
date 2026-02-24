@@ -16,6 +16,10 @@ from ..rag.embeddings import get_embedder
 from ..rag.indexer import index_project
 from ..rag.vector_store import VectorStore
 from ..agent.session_agent import SessionAgent
+from rich.spinner import Spinner
+from rich.live import Live
+
+
 
 console = Console()
 
@@ -120,67 +124,169 @@ def session_command(
         raise typer.Exit(1)
 
 
+# def run_session_loop(agent: SessionAgent):
+#     """Run the interactive session loop with streaming."""
+#     from rich.spinner import Spinner
+#     from rich.live import Live
+    
+#     while True:
+#         try:
+#             # Get user input
+#             user_input = Prompt.ask("\n[bold cyan]You[/bold cyan]").strip()
+            
+#             # Check for quit command
+#             if user_input.lower() in ['\\q', 'quit', 'exit']:
+#                 console.print("\n[yellow]👋 Session ended[/yellow]\n")
+#                 break
+            
+#             # Skip empty input
+#             if not user_input:
+#                 continue
+            
+#             # Show spinner while waiting
+#             spinner = Spinner("dots", text="Responding...")
+            
+#             try:
+#                 from ..llm.base import Message
+                
+#                 messages = [Message(role="system", content=agent.system_prompt)]
+                
+#                 # Add history
+#                 # Load history from LangChain memory
+#                 memory_variables = agent.memory.load_memory_variables({})
+#                 chat_history = memory_variables.get("chat_history", "")
+                
+#                 # Add history if exists
+#                 if chat_history:
+#                     history_lines = chat_history.strip().split("\n")
+#                     for line in history_lines:
+#                         if line.startswith("Human: "):
+#                             messages.append(Message(role="user", content=line[7:]))
+#                         elif line.startswith("AI: "):
+#                             messages.append(Message(role="assistant", content=line[4:]))
+                
+#                 messages.append(Message(role="user", content=user_input))
+                
+#                 # Start streaming
+#                 stream = agent.llm.chat_stream(messages)
+                
+#                 # Show spinner until first token
+#                 with Live(spinner, console=console, transient=True):
+#                     first_token = next(stream)
+                
+#                 # Show Agent label and first token
+#                 console.print()  
+#                 console.print(f"[bold green]💡 Agent:[/bold green] ", end="")  # No \n here
+#                 console.print(first_token, end="")
+#                 # Continue streaming rest of tokens
+#                 full_response = [first_token]
+#                 for token in stream:
+#                     console.print(token, end="")
+#                     full_response.append(token)
+#                 console.print()  # New line
+                
+#                 # Save to history
+#                 response_text = "".join(full_response)
+#                 agent.memory.save_context(
+#                     {"input": user_input},
+#                     {"output": response_text}
+#                 )
+            
+#             except Exception as e:
+#                 console.print(f"\n[red]Error:[/red] {e}")
+        
+#         except KeyboardInterrupt:
+#             console.print("\n\n[yellow]👋 Session interrupted[/yellow]")
+#             break
+        
+#         except Exception as e:
+#             console.print(f"\n[red]Error:[/red] {e}")
+#             console.print("[dim]Type \\q to quit[/dim]")
+
+
 def run_session_loop(agent: SessionAgent):
-    """Run the interactive session loop with streaming."""
+    """Run the interactive session loop with real-time formatted streaming."""
     from rich.spinner import Spinner
     from rich.live import Live
+    from rich.syntax import Syntax
+    from rich.markdown import Markdown
     
     while True:
         try:
-            # Get user input
             user_input = Prompt.ask("\n[bold cyan]You[/bold cyan]").strip()
             
-            # Check for quit command
             if user_input.lower() in ['\\q', 'quit', 'exit']:
                 console.print("\n[yellow]👋 Session ended[/yellow]\n")
                 break
             
-            # Skip empty input
             if not user_input:
                 continue
             
-            # Show spinner while waiting
-            spinner = Spinner("dots", text="Responding...")
+            spinner = Spinner("dots", text="Processing...")
             
             try:
-                from ..llm.base import Message
+                # Prepare messages
+                with Live(spinner, console=console, transient=True):
+                    prepared = agent.prepare_messages(user_input)
                 
-                messages = [Message(role="system", content=agent.system_prompt)]
+                messages = prepared['messages']
+                intermediate_steps = prepared['intermediate_steps']
                 
-                # Add history
-                for entry in agent.history[-5:]:
-                    messages.append(Message(role="user", content=entry['user']))
-                    messages.append(Message(role="assistant", content=entry['assistant']))
+                # Display intermediate steps
+                if intermediate_steps:
+                    display_thinking(intermediate_steps)
                 
-                messages.append(Message(role="user", content=user_input))
-                
-                # Start streaming
+                # Stream response
                 stream = agent.llm.chat_stream(messages)
                 
                 # Show spinner until first token
                 with Live(spinner, console=console, transient=True):
                     first_token = next(stream)
                 
-                # Show Agent label and first token
-                console.print()  
-                console.print(f"[bold green]💡 Agent:[/bold green] ", end="")  # No \n here
-                console.print(first_token, end="")
-                # Continue streaming rest of tokens
+                # Show Agent label
+                console.print()
+                console.print(f"[bold green]💡 Agent:[/bold green]\n")
+                
+                # Use Rich Markdown streaming
+                accumulated = first_token
                 full_response = [first_token]
-                for token in stream:
-                    console.print(token, end="")
-                    full_response.append(token)
-                console.print()  # New line
                 
-                # Save to history
+                # Create a Live display for markdown
+                from rich.live import Live
+                from rich.markdown import Markdown
+                from rich.text import Text
+
+                text = Text(accumulated, overflow="fold")
+
+                
+                with Live(text, console=console, refresh_per_second=10,screen=False,          # IMPORTANT
+                    auto_refresh=True) as live:
+                    # live.update(Markdown(accumulated))
+                    
+                    for token in stream:
+                        accumulated += token
+                        full_response.append(token)
+                        
+                        # Update markdown display in real-time
+                        text.append(token)
+                        live.update(text)
+                        live.update(Markdown(accumulated))
+                    
+                
+                console.print()  # spacing
+                
+                
+                # Save to memory
                 response_text = "".join(full_response)
-                agent.history.append({
-                    'user': user_input,
-                    'assistant': response_text
-                })
-                
+                agent.memory.save_context(
+                    {"input": user_input},
+                    {"output": response_text}
+                )
+            
             except Exception as e:
+                import traceback
                 console.print(f"\n[red]Error:[/red] {e}")
+                console.print(f"[dim]{traceback.format_exc()}[/dim]")
         
         except KeyboardInterrupt:
             console.print("\n\n[yellow]👋 Session interrupted[/yellow]")
@@ -190,30 +296,39 @@ def run_session_loop(agent: SessionAgent):
             console.print(f"\n[red]Error:[/red] {e}")
             console.print("[dim]Type \\q to quit[/dim]")
 
-def display_thinking(intermediate_steps: list):
-    """
-    Display agent's thinking process.
+
+# def display_thinking(intermediate_steps: list):
+#     """
+#     Display agent's thinking process.
     
-    Args:
-        intermediate_steps: List of (action, observation) tuples
-    """
-    for action, observation in intermediate_steps:
-        # Show action
-        action_name = getattr(action, 'tool', 'unknown')
-        action_input = getattr(action, 'tool_input', '')
+#     Args:
+#         intermediate_steps: List of (action, observation) tuples
+#     """
+#     for action, observation in intermediate_steps:
+#         # Show action
+#         action_name = getattr(action, 'tool', 'unknown')
+#         action_input = getattr(action, 'tool_input', '')
         
-        console.print(f"  [dim]→ {action_name}[/dim]", end="")
+#         console.print(f"  [dim]→ {action_name}[/dim]", end="")
         
-        if action_input:
-            # Show abbreviated input
-            if isinstance(action_input, dict):
-                input_str = str(action_input.get('query', action_input))
-            else:
-                input_str = str(action_input)
+#         if action_input:
+#             # Show abbreviated input
+#             if isinstance(action_input, dict):
+#                 input_str = str(action_input.get('query', action_input))
+#             else:
+#                 input_str = str(action_input)
             
-            if len(input_str) > 50:
-                input_str = input_str[:47] + "..."
+#             if len(input_str) > 50:
+#                 input_str = input_str[:47] + "..."
             
-            console.print(f"[dim]: {input_str}[/dim]")
-        else:
-            console.print()
+#             console.print(f"[dim]: {input_str}[/dim]")
+#         else:
+#             console.print()
+
+
+def display_thinking(intermediate_steps: list):
+    """Display agent's thinking process."""
+    for step in intermediate_steps:
+        if isinstance(step, tuple) and len(step) >= 2:
+            action, detail = step[0], step[1]
+            console.print(f"  [dim]🔍 {action}: {detail}[/dim]")

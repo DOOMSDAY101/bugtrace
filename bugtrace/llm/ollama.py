@@ -99,7 +99,7 @@ class OllamaLLM(BaseLLM):
             raise LLMConnectionError(
                 f"Ollama chat failed. Is Ollama running? Error: {e}"
             ) from e
-    
+
     def chat_stream(self, messages: List[Message], **kwargs) -> Iterator[str]:
         """
         Stream chat response token-by-token.
