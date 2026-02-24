@@ -421,10 +421,6 @@ def analyze(
 
 @app.command()
 def session(
-    bug_description: Optional[str] = typer.Argument(
-        None,
-        help="Optional initial bug description"
-    ),
     path: str = typer.Option(".", "--path", "-p", help="Project root path"),
 ):
     """
@@ -444,7 +440,7 @@ def session(
     
     project_root = Path(path).resolve()
     try:
-        session_command(bug_description, project_root)
+        session_command(project_root)
     except Exception as e:
         console.print(f"\n[bold red]❌ Session failed:[/bold red] {e}")
         raise typer.Exit(code=1)

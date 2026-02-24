@@ -187,7 +187,7 @@ class SessionAgent:
     """
     Simple chat interface with conversation history.
     
-    Just talks to the LLM - no code search, no tools.
+    Just talks to the LLM - no code search, no tools
     """
     
     def __init__(
@@ -195,7 +195,6 @@ class SessionAgent:
         llm: BaseLLM,
         vector_store: VectorStore,  # Keep for future use
         project_root: Path,
-        initial_query: Optional[str] = None
     ):
         self.llm = llm
         self.vector_store = vector_store
@@ -271,6 +270,17 @@ Always:
                 intermediate_steps.append(('search_codebase', f'Searching: {user_input[:50]}...'))
                 
                 # Call the search function
+                 # 2. Index project
+                from ..rag.indexer import index_project
+                
+
+                intermediate_steps.append(
+                    ("indexing", "Ensuring project index is up to date...")
+                )
+                index_project(self.project_root, verbose=False)
+                intermediate_steps.append(
+                    ("indexing", "Index ready")
+                )
                 results = self.vector_store.search(user_input, top_k=6)                
                 # Extract file info from results
                 if results:

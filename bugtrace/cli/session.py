@@ -25,10 +25,6 @@ console = Console()
 
 
 def session_command(
-    bug_description: Optional[str] = typer.Argument(
-        None,
-        help="Optional initial bug description"
-    ),
     project_root: Path = typer.Option(
         ".",
         "--project",
@@ -93,16 +89,11 @@ def session_command(
             llm=llm,
             vector_store=vector_store,
             project_root=project_root,
-            initial_query=bug_description
         )
         
         # 6. Display session info
         console.print()
-        if bug_description:
-            console.print(f"[bold]💬 Debugging:[/bold] {bug_description}")
-            console.print("[green]✓[/green] Initial context loaded")
-        else:
-            console.print("[bold]💬 Exploratory debugging session[/bold]")
+        console.print("[bold]💬 Exploratory debugging session[/bold]")
         
         console.print("[dim]Type your questions (type \\q to quit)[/dim]\n")
         
@@ -122,87 +113,6 @@ def session_command(
     except Exception as e:
         console.print(f"\n[red]✗[/red] Error: {e}")
         raise typer.Exit(1)
-
-
-# def run_session_loop(agent: SessionAgent):
-#     """Run the interactive session loop with streaming."""
-#     from rich.spinner import Spinner
-#     from rich.live import Live
-    
-#     while True:
-#         try:
-#             # Get user input
-#             user_input = Prompt.ask("\n[bold cyan]You[/bold cyan]").strip()
-            
-#             # Check for quit command
-#             if user_input.lower() in ['\\q', 'quit', 'exit']:
-#                 console.print("\n[yellow]👋 Session ended[/yellow]\n")
-#                 break
-            
-#             # Skip empty input
-#             if not user_input:
-#                 continue
-            
-#             # Show spinner while waiting
-#             spinner = Spinner("dots", text="Responding...")
-            
-#             try:
-#                 from ..llm.base import Message
-                
-#                 messages = [Message(role="system", content=agent.system_prompt)]
-                
-#                 # Add history
-#                 # Load history from LangChain memory
-#                 memory_variables = agent.memory.load_memory_variables({})
-#                 chat_history = memory_variables.get("chat_history", "")
-                
-#                 # Add history if exists
-#                 if chat_history:
-#                     history_lines = chat_history.strip().split("\n")
-#                     for line in history_lines:
-#                         if line.startswith("Human: "):
-#                             messages.append(Message(role="user", content=line[7:]))
-#                         elif line.startswith("AI: "):
-#                             messages.append(Message(role="assistant", content=line[4:]))
-                
-#                 messages.append(Message(role="user", content=user_input))
-                
-#                 # Start streaming
-#                 stream = agent.llm.chat_stream(messages)
-                
-#                 # Show spinner until first token
-#                 with Live(spinner, console=console, transient=True):
-#                     first_token = next(stream)
-                
-#                 # Show Agent label and first token
-#                 console.print()  
-#                 console.print(f"[bold green]💡 Agent:[/bold green] ", end="")  # No \n here
-#                 console.print(first_token, end="")
-#                 # Continue streaming rest of tokens
-#                 full_response = [first_token]
-#                 for token in stream:
-#                     console.print(token, end="")
-#                     full_response.append(token)
-#                 console.print()  # New line
-                
-#                 # Save to history
-#                 response_text = "".join(full_response)
-#                 agent.memory.save_context(
-#                     {"input": user_input},
-#                     {"output": response_text}
-#                 )
-            
-#             except Exception as e:
-#                 console.print(f"\n[red]Error:[/red] {e}")
-        
-#         except KeyboardInterrupt:
-#             console.print("\n\n[yellow]👋 Session interrupted[/yellow]")
-#             break
-        
-#         except Exception as e:
-#             console.print(f"\n[red]Error:[/red] {e}")
-#             console.print("[dim]Type \\q to quit[/dim]")
-
 
 def run_session_loop(agent: SessionAgent):
     """Run the interactive session loop with real-time formatted streaming."""
