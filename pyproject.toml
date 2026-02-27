@@ -47,5 +47,7 @@ LinkedIn = "https://www.linkedin.com/in/ifeoluwa-sulaiman"
 [project.scripts]
 bugtrace = "bugtrace.cli.main:run"
 
-[tool.setuptools]
-packages = ["bugtrace"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bugtrace*"]
+exclude = ["tests*"]
