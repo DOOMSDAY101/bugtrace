@@ -171,7 +171,7 @@ Return ONLY the destination name (either 'chat' or 'search_codebase'):"""
             # Parse result
             intent = result.strip().lower()
             
-            print(f"[DEBUG] Router raw response: '{result}'", flush=True)
+            # print(f"[DEBUG] Router raw response: '{result}'", flush=True)
             
             # Determine intent
             if intent == 'search_codebase':
@@ -180,7 +180,7 @@ Return ONLY the destination name (either 'chat' or 'search_codebase'):"""
                 return 'chat'
                 
         except Exception as e:
-            print(f"[DEBUG] Router error: {e}, defaulting to chat", flush=True)
+            # print(f"[DEBUG] Router error: {e}, defaulting to chat", flush=True)
             return 'chat'
 
 class SessionAgent:
@@ -260,7 +260,7 @@ Always:
         try:
             # Route the intent
             intent = self.router.route(user_input)
-            print(f"\n[DEBUG] Intent: {intent}", flush=True)
+            # print(f"\n[DEBUG] Intent: {intent}", flush=True)
             
             intermediate_steps = []
             
@@ -326,7 +326,7 @@ Always:
                     intermediate_steps.append(('search_codebase', 'No relevant code found'))
                     code_results = "No relevant code found in the codebase."
 
-                print(f"[DEBUG] Found code, length: {len(code_results)}\n", flush=True)
+                # print(f"[DEBUG] Found code, length: {len(code_results)}\n", flush=True)
                 # Build messages with code context
                 messages = self._build_messages_with_history(self.code_system_prompt)
                 
@@ -342,7 +342,7 @@ Always:
             
             else:
                 # CHAT MODE: Just talk
-                print(f"[DEBUG] Chat mode\n", flush=True)
+                # print(f"[DEBUG] Chat mode\n", flush=True)
                 messages = self._build_messages_with_history(self.system_prompt)
                 messages.append(Message(role="user", content=user_input))
             
