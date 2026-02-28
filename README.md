@@ -48,6 +48,7 @@
 - **Dual Memory System**: Maintains both recent conversation context and semantic retrieval from past discussions
 - **Real-Time Streaming**: Beautiful markdown-formatted responses stream as they're generated
 - **File Tracking**: Incremental indexing - only processes new/changed files
+- **Multi-Language Support**: Works with Python, JavaScript, TypeScript, and more
 
 ### Advanced Features
 
@@ -82,10 +83,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 #### Method 1: From GitHub (Current)
 
 ```bash
-git clone https://github.com/DOOMSDAY101/bugtrace.git
-cd bugtrace
-pip install -r requirements.txt
-pip install -e .
+pip install git+https://github.com/DOOMSDAY101/bugtrace.git
 ```
 
 #### Method 2: From PyPI (Coming Soon)
