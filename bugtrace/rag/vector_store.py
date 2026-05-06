@@ -1,4 +1,3 @@
-# bugtrace/rag/vector_store.py
 from pathlib import Path
 from typing import List, Dict
 from langchain_chroma import Chroma 
@@ -28,7 +27,7 @@ class VectorStore:
         # Initialize ChromaDB client
         try:
             self.vector_store = Chroma(
-                collection_name="default",
+                collection_name=self.collection_name,
                 embedding_function=embedder,  # Works because embedder has embed_documents/embed_query
                 persist_directory=str(self.persist_dir),
                 collection_metadata={"hnsw:space": "cosine",
@@ -133,6 +132,11 @@ class VectorStore:
         ]
     
     
+    def as_retriever(self, k: int = 3):
+        return self.vector_store.as_retriever(
+            search_type="similarity",
+            search_kwargs={"k": k}
+        )
     def get_stats(self) -> Dict:
         """Get statistics"""
         try:

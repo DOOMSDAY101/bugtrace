@@ -12,7 +12,7 @@ from ..report.streaming import StreamingHandler
 from .context_builder import ContextBuilder
 from .prompt_manager import PromptManager
 from .fix_validator import FixValidator
-from ..llm.base import BaseLLM, LLMError
+from ..llm.base import LLMError
 
 
 class Orchestrator:
@@ -36,7 +36,7 @@ class Orchestrator:
     
     def __init__(
         self,
-        llm: BaseLLM,
+        llm,
         stream: bool = True,
         mode: str = "debug"
     ):

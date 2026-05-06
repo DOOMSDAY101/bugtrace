@@ -5,7 +5,7 @@ Builds effective prompts for different analysis scenarios.
 """
 
 from typing import Dict, Any, List
-from ..llm.base import Message
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 
 class PromptManager:
@@ -92,7 +92,7 @@ Provide specific security recommendations with code references."""
         query: str,
         context: Dict[str, Any],
         mode: str = "debug"
-    ) -> List[Message]:
+    ) -> List:
         """
         Build complete prompt for debugging.
         
@@ -111,8 +111,8 @@ Provide specific security recommendations with code references."""
         user_prompt = self._build_user_prompt(query, context, mode)
         
         return [
-            Message(role="system", content=system_prompt),
-            Message(role="user", content=user_prompt)
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_prompt)
         ]
     
     def _build_user_prompt(
@@ -201,7 +201,7 @@ Provide specific security recommendations with code references."""
         
         return "\n".join(lines)
     
-    def build_simple_prompt(self, query: str, code: str) -> List[Message]:
+    def build_simple_prompt(self, query: str, code: str) -> List:
         """
         Build simple prompt without RAG context.
         
@@ -215,22 +215,17 @@ Provide specific security recommendations with code references."""
             List of Message objects
         """
         return [
-            Message(
-                role="system",
-                content=self.SYSTEM_PROMPTS["debug"]
-            ),
-            Message(
-                role="user",
-                content=f"{query}\n\n```\n{code}\n```"
-            )
-        ]
+        SystemMessage(content=self.SYSTEM_PROMPTS["debug"]),
+        HumanMessage(content=f"{query}\n\n```python\n{code}\n```")
+    ]
+
     
     def build_followup_prompt(
         self,
         original_query: str,
         original_response: str,
         followup_query: str
-    ) -> List[Message]:
+    ) -> List:
         """
         Build prompt for follow-up questions.
         
@@ -243,8 +238,8 @@ Provide specific security recommendations with code references."""
             List of Message objects with conversation history
         """
         return [
-            Message(role="system", content=self.SYSTEM_PROMPTS["debug"]),
-            Message(role="user", content=original_query),
-            Message(role="assistant", content=original_response),
-            Message(role="user", content=followup_query)
-        ]
+        SystemMessage(content=self.SYSTEM_PROMPTS["debug"]),
+        HumanMessage(content=original_query),
+        AIMessage(content=original_response),
+        HumanMessage(content=followup_query)
+    ]

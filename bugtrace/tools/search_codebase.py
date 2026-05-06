@@ -10,46 +10,60 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from bugtrace.rag.vector_store import VectorStore
 
+def create_search_tool(vector_store: "VectorStore", top_k: int = 3):
+    retriever = vector_store.as_retriever(k=top_k)
 
-def create_search_tool(vector_store: "VectorStore", top_k: int = 6):
     @tool("search_codebase")
     def search_codebase(query: str) -> str:
         """
         Search the codebase for relevant code chunks.
-
+        
         Use this tool when you need to find:
-        - functions or classes
-        - features or flows
-        - bugs or error messages
+        - Functions, classes, or methods
+        - Bug locations or error-prone code
+        - Implementation details
+        - Specific features or flows
+        - DO NOT use tools for greetings, casual chat, or non-technical input.
+        Args:
+            query: Search query describing what code you're looking for
+            
+        Returns:
+            Formatted code chunks with file names, line numbers, and content
         """
 
-        results = vector_store.search(query, top_k=top_k)
+        query = (query or "").strip()
+        if not query:
+            return "⚠️ Empty query received. Skipping code search."
+        
+        results = retriever.invoke(query)
 
         if not results:
             return f"No relevant code found for query: '{query}'"
-
+        
         formatted = [f"Found {len(results)} relevant code chunks:\n"]
 
         for i, result in enumerate(results, 1):
-            meta = result.get("metadata", {})
+            meta = getattr(result, "metadata", {}) or {}
             file = meta.get('file', 'unknown')
             lines = f"{meta.get('line_start', '?')}-{meta.get('line_end', '?')}"
+            func = meta.get("function_name")
+            
+            formatted.append(f"\n{'='*60}")
+            formatted.append(f"Result {i}/{len(results)}")
+            formatted.append(f"{'='*60}")
+            line_start = meta.get("line_start", "?")
 
-            formatted.append(f"\n--- Result {i} ---")
-            formatted.append(f"File: {meta.get('file', 'unknown')}")
-            formatted.append(
-                f"Lines: {meta.get('line_start', '?')}-{meta.get('line_end', '?')}"
-            )
-
-            fn = meta.get("function_name")
-            if fn:
-                formatted.append(f"Function: {fn}")
-            formatted.append(f"\n**Section {i}** - `{file}` (lines {lines})")
-
-            formatted.append("\nCode:\n```")
-            formatted.append(result["text"].strip())
+            formatted.append(f"File: {file}:{line_start} (Lines {lines})")
+            formatted.append(f"Lines: {lines}")
+            
+            if func:
+                formatted.append(f"Function: {func}")
+            
+            formatted.append(f"\nCode:")
             formatted.append("```")
-
+            formatted.append(result.page_content.strip())
+            formatted.append("```")
+        
         return "\n".join(formatted)
 
     return search_codebase

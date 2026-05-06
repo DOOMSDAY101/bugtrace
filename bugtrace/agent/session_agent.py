@@ -1,372 +1,292 @@
 from pathlib import Path
-from typing import Optional, List, Dict,Literal
-
-from ..llm.base import BaseLLM, Message
+from typing import TypedDict, Annotated, Sequence, Iterator
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage, BaseMessage
+from langgraph.graph.message import add_messages
+from langchain_core.tools import BaseTool
+from langgraph.graph import StateGraph, END
+from langgraph.prebuilt import ToolNode
+from langgraph.checkpoint.memory import MemorySaver
 from ..rag.vector_store import VectorStore
 from ..tools.search_codebase import create_search_tool
-from langchain_core.prompts import PromptTemplate
+from ..llm import get_llm
 
 
-from langchain_classic.memory import (
-    ConversationBufferMemory,
-)
-
-
-# class IntentRouter:
-#     """
-#     Lightweight intent router - no LLM calls, no token cost.
-    
-#     Uses keyword patterns to detect when tools are needed.
-#     """
-    
-#     def __init__(self):
-#         # Define tool triggers with keywords
-#         self.tool_patterns = {
-#             'search_codebase': {
-#                 'keywords': [
-#                     # Bug/error keywords
-#                     'bug', 'error', 'issue', 'problem', 'fail', 'crash', 'break',
-#                     'exception', 'warning', 'traceback', 'stderr',
-                    
-#                     # Code investigation keywords
-#                     'function', 'class', 'method', 'variable', 'code', 
-#                     'file', 'line', 'module', 'import',
-                    
-#                     # Questions about code
-#                     'why does', 'how does', 'what does', 'where is',
-#                     'show me', 'find', 'search', 'look for',
-                    
-#                     # Analysis keywords
-#                     'analyze', 'debug', 'fix', 'solve', 'investigate',
-#                     'explain the code', 'understand the code'
-#                 ],
-#                 'min_words': 2  # Only trigger if query has 2+ words
-#             },
-            
-#             # Add more tools here as you build them
-#             # 'search_logs': {
-#             #     'keywords': ['log', 'logs', 'logging', 'logged'],
-#             #     'min_words': 2
-#             # },
-#             # 'run_tests': {
-#             #     'keywords': ['test', 'tests', 'pytest', 'unittest'],
-#             #     'min_words': 2
-#             # }
-#         }
-        
-#         # Greetings - always just chat
-#         self.greeting_patterns = [
-#             'hi', 'hello', 'hey', 'sup', 'yo',
-#             'thanks', 'thank you', 'ok', 'okay', 'cool',
-#             'bye', 'goodbye', 'see you'
-#         ]
-        
-#         # Meta questions - always just chat
-#         self.meta_patterns = [
-#             'what can you do',
-#             'what can you help',
-#             'who are you',
-#             'what are you',
-#             'how can you help'
-#         ]
-    
-#     def route(self, user_input: str) -> Literal['chat', 'search_codebase']:
-#         """
-#         Route user input to appropriate handler.
-        
-#         Returns:
-#             'chat' - just talk to LLM
-#             'search_codebase' - search code then talk to LLM
-#             (can add more tool types as you build them)
-#         """
-#         query = user_input.lower().strip()
-#         words = query.split()
-        
-#         # 1. Check greetings - always chat
-#         if len(words) <= 2:
-#             if any(query.startswith(g) for g in self.greeting_patterns):
-#                 return 'chat'
-        
-#         # 2. Check meta questions - always chat
-#         if any(pattern in query for pattern in self.meta_patterns):
-#             return 'chat'
-        
-#         # 3. Check tool patterns
-#         for tool_name, config in self.tool_patterns.items():
-#             # Check minimum word count
-#             if len(words) < config.get('min_words', 1):
-#                 continue
-            
-#             # Check if any keywords match
-#             if any(keyword in query for keyword in config['keywords']):
-#                 return tool_name
-        
-#         # 4. Default: just chat
-#         return 'chat'
-
-class IntentRouter:
-    """
-    LangChain-based intent router using LLM classification.
-    """
-    
-    def __init__(self, llm: BaseLLM):
-        self.llm = llm  # Your OllamaLLM instance
-        
-        # Define destinations
-        self.destinations = """
-chat: Use for general conversation, follow-up questions, and clarifications about previous responses
-search_codebase: Use when user wants to investigate NEW code, find bugs, understand implementation, or analyze errors
-"""
-        
-        # Router prompt
-        ROUTER_TEMPLATE = """Given a user question and conversation history, determine which action to take.
-
-Destinations:
-{destinations}
-
-Rules:
-- If user is asking about something you previously said (e.g., "what files?", "explain that"), choose 'chat'
-- If user wants to investigate NEW code or bugs, choose 'search_codebase'
-- If uncertain, choose 'chat'
-- Only choose 'search_codebase' if the user is asking to investigate new code,
-  find bugs, or analyze implementation.
-- For any conversational follow-ups about previous answers, explanations,
-  clarifications, or questions about the files I already used, choose 'chat'.
-
-User question: {input}
-Recent conversation: {conversation_context}
-
-Return ONLY the destination name (either 'chat' or 'search_codebase'):"""
-        
-        self.router_prompt = PromptTemplate(
-            template=ROUTER_TEMPLATE,
-            input_variables=["input", "conversation_context"],
-            partial_variables={"destinations": self.destinations}
-        )
-    
-    def route(self, user_input: str, conversation_context: str = "") -> Literal['chat', 'search_codebase']:
-        """
-        Route using LLM classification.
-        
-        Args:
-            user_input: User's question
-            conversation_context: Recent conversation history
-        
-        Returns:
-            'chat' or 'search_codebase'
-        """
-        try:
-            # Format the prompt
-            prompt_text = self.router_prompt.format(
-                input=user_input,
-                conversation_context=conversation_context[:500]
-            )
-            
-            # Use your OllamaLLM to classify
-            messages = [Message(role="user", content=prompt_text)]
-            
-            # Get classification (short response)
-            result = self.llm.chat(messages, max_tokens=10, temperature=0.0)
-            
-            # Parse result
-            intent = result.strip().lower()
-            
-            # print(f"[DEBUG] Router raw response: '{result}'", flush=True)
-            
-            # Determine intent
-            if intent == 'search_codebase':
-                return 'search_codebase'
-            else:
-                return 'chat'
-                
-        except Exception as e:
-            # print(f"[DEBUG] Router error: {e}, defaulting to chat", flush=True)
-            return 'chat'
+class AgentState(TypedDict):
+    """State for the agent graph."""
+    messages: Annotated[Sequence[BaseMessage], add_messages]
+    intermediate_steps: list 
 
 class SessionAgent:
     """
-    Simple chat interface with conversation history.
+    LangGraph-based ReAct agent with proper tool integration.
     
-    Just talks to the LLM - no code search, no tools
+    Uses LangGraph's built-in ReAct pattern:
+    - Agent decides when to use tools
+    - Proper message types (HumanMessage, AIMessage, ToolMessage)
+    - State management with checkpointing
+    - Easy to extend with new tools
     """
-    
+
     def __init__(
         self,
-        llm: BaseLLM,
-        vector_store: VectorStore,  # Keep for future use
+        vector_store: VectorStore,
         project_root: Path,
+        llm_config
     ):
-        self.llm = llm
+        self.config = llm_config
+        self.llm = get_llm(self.config)
         self.vector_store = vector_store
         self.project_root = project_root
-        self.search_codebase = create_search_tool(vector_store, top_k=6)
-        self.router = IntentRouter(llm)
+        
+        # Create tools
+        self.tools = self._create_tools()
+        self.llm_with_tools = self.llm.bind_tools(self.tools)
+        
+        # Memory/checkpointing
+        self.memory = MemorySaver()
+        self.thread_id = "default_session"
 
-        self.memory = ConversationBufferMemory(
-            memory_key="chat_history",
-            return_messages= True, # Return as string, not Message objects
-            input_key="input",
-            output_key="output"
-        )        
+        # Build LangGraph
+        self.graph = self._build_graph()
+        
+        
         # System prompt
-        self.system_prompt = """You are a helpful debugging assistant.
+        self.system_prompt = """You are a coding assistant.
 
-You help developers with:
-- Understanding bugs and errors
-- Explaining code concepts
-- Suggesting approaches to problems
+        Answer the user directly and concisely.
 
-Be friendly, concise, and helpful."""
-        self.code_system_prompt = """You are a debugging assistant analyzing code.
+        Only use tools when absolutely necessary.
+        Always cite specific files and line numbers when discussing code.
 
-You have been provided with relevant code from the codebase.
-Analyze it carefully and answer the user's question.
-
-Always:
-- Cite specific file names and line numbers
-- Explain what the code does
-- Point out potential issues
-- Suggest fixes if applicable"""
-
-    def _build_messages_with_history(self, system_prompt: str) -> List[Message]:
-        messages = [Message(role="system", content=system_prompt)]
-        
-        # Load history as structured messages
-        memory_vars = self.memory.load_memory_variables({})
-        chat_history = memory_vars.get("chat_history", [])
-        
-        if chat_history:
-            for msg in chat_history:
-                # Normalize to your Message class
-                if isinstance(msg, Message):
-                    messages.append(msg)
-                elif hasattr(msg, "role") and hasattr(msg, "content"):
-                    messages.append(Message(role=msg.role, content=msg.content))
-                elif isinstance(msg, dict) and "role" in msg and "content" in msg:
-                    messages.append(Message(role=msg["role"], content=msg["content"]))
-                else:
-                    # fallback: treat as user text
-                    messages.append(Message(role="user", content=str(msg)))
-        
-        return messages
-    def prepare_messages(self, user_input: str) -> dict:
         """
-        Prepare messages for streaming (does routing + code search).
-        Does NOT call LLM - returns messages ready for streaming.
+
+    def _create_tools(self) -> list[BaseTool]:
+        """Create tools for the agent."""
+        tools = []
         
+        # Code search tool
+        search_tool = create_search_tool(
+            vector_store=self.vector_store,
+            top_k=3
+        )
+        tools.append(search_tool)
+        # Future tools can be added here:
+        # tools.append(log_search_tool)
+        # tools.append(config_check_tool)
+
+        return tools
+    
+    def _build_graph(self) -> StateGraph:
+        """Build the LangGraph ReAct agent graph."""
+        # Create graph
+        workflow = StateGraph(AgentState)
+        
+        # Create tool node
+        tool_node = ToolNode(self.tools)
+        
+        # Define nodes
+        workflow.add_node("agent", self._agent_node)
+        workflow.add_node("tools", tool_node)
+        
+        # Set entry point
+        workflow.set_entry_point("agent")
+        
+        # Add conditional edges
+        workflow.add_conditional_edges(
+            "agent",
+            self._should_continue,
+            {
+                "continue": "tools",
+                "end": END,
+            }
+        )
+        
+        # Tool -> Agent edge
+        workflow.add_edge("tools", "agent")
+        
+        # Compile
+        return workflow.compile(checkpointer=self.memory)
+    
+
+    def _agent_node(self, state: AgentState) -> AgentState:
+        """Agent reasoning node - decides what to do next."""
+        messages = state["messages"]
+        
+        # Add system message if first message
+        if not any(isinstance(msg, SystemMessage) for msg in messages):
+            messages = [SystemMessage(content=self.system_prompt)] + messages
+        
+        # Call LLM with tools
+        response = self.llm_with_tools.invoke(messages)
+       
+        
+        # Update state
+        return {
+            "messages": messages + [response],
+            "intermediate_steps": state.get("intermediate_steps", [])
+        }
+    
+    def _should_continue(self, state: AgentState) -> str:
+        """Determine if agent should continue or end."""
+        messages = state["messages"]
+        last_message = messages[-1]
+        
+        # If the LLM made a tool call, continue to tools
+        if hasattr(last_message, "tool_calls") and last_message.tool_calls:
+            return "continue"
+        
+        # Otherwise, end
+        return "end"
+
+    def stream_agent_response(self, user_input: str) -> Iterator[dict]:
+        """
+        Stream agent execution with tool calls and responses.
+        
+        Yields events:
+        - {'type': 'tool_start', 'tool': 'name', 'args': {...}}
+        - {'type': 'tool_end', 'tool': 'name', 'result': '...', 'files': [...]}
+        - {'type': 'response_start'}
+        - {'type': 'token', 'content': 'token'}
+        - {'type': 'response_end'}
+        """
+        # Create message
+        human_msg = HumanMessage(content=user_input)
+        
+        # Get current state
+        config = {"configurable": {"thread_id": self.thread_id}}
+        current_state = self.graph.get_state(config)
+        
+        # Build initial state
+        if not current_state.values.get("messages"):
+            messages = [human_msg]
+        else:
+            messages = current_state.values["messages"] + [human_msg]
+        
+        initial_state = {"messages": messages}
+        
+        
+        # Stream graph execution
+        for mode,data in self.graph.stream(initial_state, config, stream_mode=["messages", "updates"]):   
+            # TOKEN STREAMING
+            if mode == "messages":
+                msg, meta = data
+
+                # Only stream from agent node
+                if (
+                    isinstance(msg, AIMessage)
+                    and msg.content
+                    and meta.get("langgraph_node") == "agent"
+                ):
+                    yield {
+                        "type": "token",
+                        "content": msg.content
+                    }
+
+            # NODE UPDATES
+            elif mode == "updates":
+                for node_name, node_output in data.items():
+
+                    if node_name == "agent":
+                        messages = node_output.get("messages", [])
+                        if not messages:
+                            continue
+
+                        last_msg = messages[-1]
+
+                        # Tool start
+                        if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                            for tool_call in last_msg.tool_calls:
+                                yield {
+                                    "type": "tool_start",
+                                    "tool": tool_call["name"],
+                                    "args": tool_call.get("args", {})
+                                }
+
+                    elif node_name == "tools":
+                        # Tool executed
+                        messages = node_output.get("messages", [])
+                        if not messages:
+                            continue
+                        
+                        for msg in messages:
+                            if isinstance(msg, ToolMessage):
+                                # Extract files from result
+                                tool_name = getattr(msg, "name", "tool")
+
+                                
+                                event = {
+                                "type": "tool_end",
+                                "tool": tool_name,
+                                "result": msg.content,
+                                }
+
+                                # Tool-specific post-processing
+                                if tool_name == "search_codebase":
+                                    event["files"] = self._extract_files_from_result(msg.content)
+
+                                yield event
+                    
+                    yield {
+                        "type": "node_complete",
+                        "node": node_name
+                    }
+
+    def _extract_files_from_result(self, result: str) -> list[str]:
+        """Extract file paths from tool result."""
+        files = []
+        for line in result.split('\n'):
+            if line.startswith('File: '):
+                file_path = line.replace('File: ', '').strip()
+                files.append(file_path)
+        return files
+    
+    def invoke(self, user_input: str) -> str:
+        """
+        Invoke agent synchronously (non-streaming).
+        
+        Args:
+            user_input: User's question
+            
         Returns:
-            dict with 'messages' and 'intermediate_steps'
+            Agent's response
         """
-        try:
-            # Route the intent
-            intent = self.router.route(user_input)
-            # print(f"\n[DEBUG] Intent: {intent}", flush=True)
-            
-            intermediate_steps = []
-            
-            if intent == 'search_codebase':
-                intermediate_steps.append(('routing', f'Detected code question, searching codebase...'))
-                # CODE MODE: Search code
-                intermediate_steps.append(('search_codebase', f'Searching: {user_input[:50]}...'))
-                
-                # Call the search function
-                 # 2. Index project
-                from ..rag.indexer import index_project
-                
-
-                intermediate_steps.append(
-                    ("indexing", "Ensuring project index is up to date...")
-                )
-                index_project(self.project_root, verbose=False)
-                intermediate_steps.append(
-                    ("indexing", "Index ready")
-                )
-                results = self.vector_store.search(user_input, top_k=6)                
-                # Extract file info from results
-                if results:
-                    intermediate_steps.append(('search_codebase', f'Found {len(results)} relevant code sections'))
-                    
-                    # Extract file info for intermediate steps
-                    for result in results:
-                        meta = result.get('metadata', {})
-                        file = meta.get('file', 'unknown')
-                        lines = f"{meta.get('line_start', '?')}-{meta.get('line_end', '?')}"
-                        func = meta.get('function_name', '')
-                        
-                        if func:
-                            file_info = f"{file}::{func} (lines {lines})"
-                        else:
-                            file_info = f"{file} (lines {lines})"
-                        
-                        intermediate_steps.append(('file_checked', file_info))
-                    
-                    # Format results for LLM (same format as the tool)
-                    formatted = [f"Found {len(results)} relevant code chunks:\n"]
-                    
-                    for i, result in enumerate(results, 1):
-                        meta = result.get("metadata", {})
-                        file = meta.get('file', 'unknown')
-                        lines = f"{meta.get('line_start', '?')}-{meta.get('line_end', '?')}"
-                        
-                        formatted.append(f"\n--- Result {i} ---")
-                        formatted.append(f"File: {file}")
-                        formatted.append(f"Lines: {lines}")
-                        
-                        fn = meta.get("function_name")
-                        if fn:
-                            formatted.append(f"Function: {fn}")
-                        
-                        formatted.append(f"\n**Section {i}** - `{file}` (lines {lines})")
-                        formatted.append("\nCode:\n```")
-                        formatted.append(result["text"].strip())
-                        formatted.append("```")
-                    
-                    code_results = "\n".join(formatted)
-                else:
-                    intermediate_steps.append(('search_codebase', 'No relevant code found'))
-                    code_results = "No relevant code found in the codebase."
-
-                # print(f"[DEBUG] Found code, length: {len(code_results)}\n", flush=True)
-                # Build messages with code context
-                messages = self._build_messages_with_history(self.code_system_prompt)
-                
-                # Add query with code context
-                user_message = f"""Question: {user_input}
-
-    Relevant code from the codebase:
-    {code_results}
-
-    Based on the code above, analyze and answer the user's question. Reference specific files and line numbers."""
-                
-                messages.append(Message(role="user", content=user_message))
-            
-            else:
-                # CHAT MODE: Just talk
-                # print(f"[DEBUG] Chat mode\n", flush=True)
-                messages = self._build_messages_with_history(self.system_prompt)
-                messages.append(Message(role="user", content=user_input))
-            
-            return {
-                'messages': messages,
-                'intermediate_steps': intermediate_steps
+        human_msg = HumanMessage(content=user_input)
+        
+        config = {"configurable": {"thread_id": self.thread_id}}
+        current_state = self.graph.get_state(config)
+        
+        if not current_state.values.get("messages"):
+            initial_state = {
+                "messages": [human_msg],
+                "intermediate_steps": []
             }
-            
-        except Exception as e:
-            import traceback
-            print(f"[DEBUG] Exception: {traceback.format_exc()}", flush=True)
-            return {
-                'messages': [],
-                'intermediate_steps': []
+        else:
+            initial_state = {
+                "messages": current_state.values["messages"] + [human_msg],
+                "intermediate_steps": []
             }
-
+        
+        # Run the graph
+        result = self.graph.invoke(initial_state, config)
+        
+        # Extract final response
+        messages = result["messages"]
+        
+        # Find last AI message
+        for msg in reversed(messages):
+            if isinstance(msg, AIMessage) and msg.content:
+                return msg.content
+        
+        return "No response generated."
+    
     def clear_memory(self):
         """Clear conversation history."""
-        self.memory.clear()
+        # Reset thread (creates new conversation)
+        import uuid
+        self.thread_id = f"session_{uuid.uuid4().hex[:8]}"
     
-    def get_conversation_history(self) -> str:
-        """Get formatted conversation history."""
-        try:
-            memory_vars = self.memory.load_memory_variables({})
-            return memory_vars.get("chat_history", "No history")
-        except:
-            return "No history available"
+    def get_conversation_history(self) -> list[BaseMessage]:
+        """Get conversation history."""
+        config = {"configurable": {"thread_id": self.thread_id}}
+        state = self.graph.get_state(config)
+        return state.values.get("messages", [])

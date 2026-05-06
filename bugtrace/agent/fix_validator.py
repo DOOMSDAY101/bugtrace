@@ -1,7 +1,9 @@
 # bugtrace/analyze/fix_validator.py
 
 from typing import Dict, Any
-from bugtrace.llm.base import Message, BaseLLM
+# from bugtrace.llm.base import Message, BaseLLM
+from langchain_core.messages import SystemMessage, HumanMessage
+
 
 
 VALIDATION_PROMPT = """
@@ -30,7 +32,7 @@ Here is the proposed fix:
 
 
 class FixValidator:
-    def __init__(self, llm: BaseLLM):
+    def __init__(self, llm):
         self.llm = llm
 
     def validate(
@@ -47,8 +49,9 @@ class FixValidator:
         )
 
         messages = [
-            Message(role="system", content="You are a senior software engineer performing a code review."),
-            Message(role="user", content=prompt),
+            SystemMessage(content="You are a senior software engineer performing a code review."),
+            HumanMessage(content=prompt),
         ]
+
 
         return self.llm.chat(messages)
