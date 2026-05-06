@@ -18,7 +18,7 @@ if requirements_file.exists():
 
 setup(
     name="bugtrace",
-    version="1.0.0",
+    version="2.0.0",
     author="Ifeoluwa Sulaiman",
     author_email="ifeoluwasulaiman30@gmail.com",
     description="AI-powered debugging assistant with RAG-based codebase search",

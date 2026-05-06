@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-05-06
+
+### Breaking Changes
+
+- Replaced LangChain agent abstractions with LangGraph-based execution
+- Removed legacy agent/memory abstractions in favor of explicit state management
+- Refactored session agent architecture (new execution flow and message handling)
+- Tool interaction model changed (now uses structured tool calls + ToolMessage)
+
+### Added
+
+#### LangGraph Agent System
+
+- Introduced StateGraph-based ReAct agent
+- Explicit control over agent → tool → agent loop
+- Conditional execution flow (`continue` vs `end`)
+- Built-in checkpointing with MemorySaver
+
+#### Tooling Improvements
+
+- Standardized tool interface using `@tool`
+- Improved code search tool formatting (clear file + line references)
+- Tool lifecycle events:
+  - `tool_start`
+  - `tool_end`
+
+#### Streaming Overhaul
+
+- Token-level streaming from agent node
+- Structured execution events:
+  - `token`
+  - `tool_start`
+  - `tool_end`
+  - `node_complete`
+
+- Better real-time UX and observability
+
+### Changed
+
+- Rewrote session agent using LangGraph instead of LangChain agents
+- Simplified LLM interaction (direct `.invoke()` + `.bind_tools()`)
+- Improved system prompt handling (injected once at runtime)
+- Refactored conversation state handling using graph state
+- Cleaner separation between agent logic and tools
+
+### Removed
+
+- LangChain agent executor abstractions
+- Legacy memory systems (conversation buffer, retriever memory wrappers)
+- Hidden agent loops (now fully explicit via graph)
+
+### Fixed
+
+- Improved handling of empty tool queries
+- More robust message/state synchronization
+- Cleaner extraction of file references from tool results
+- General stability improvements in streaming and execution flow
+
 ## [1.0.0] - 2025-02-27
 
 ### 🎉 Initial Release
@@ -96,20 +154,13 @@ bugtrace session
 
 ## [Unreleased]
 
-### Planned for v1.1.0
-
-- Log search tool
-- Config validation tool
-- Ranked hypotheses with confidence scores
-- Export reports to markdown/JSON
-
-### Planned for v1.2.0
+### Planned for v2.1.0
 
 - OpenAI support (GPT-4, GPT-3.5-turbo)
 - Anthropic (Claude) support
 - Multi-file bug tracking
 
-### Planned for v2.0.0
+### Planned for v2.2.0
 
 - Automatic fix suggestions
 - Git integration
