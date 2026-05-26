@@ -1,5 +1,6 @@
 from bugtrace.rag.embeddings.base import BaseEmbedder
 from bugtrace.rag.embeddings.ollama import OllamaEmbedder
+from bugtrace.rag.embeddings.openai import OpenAIEmbedder
 
 def get_embedder(config: dict) -> BaseEmbedder:
     """
@@ -17,6 +18,8 @@ def get_embedder(config: dict) -> BaseEmbedder:
 
     if llm_provider == 'ollama':
         return OllamaEmbedder(llm_provider)
+    elif llm_provider == 'openai':
+        return OpenAIEmbedder()
     # elif provider == 'openai':
     #     return OpenAIEmbedder(model)
     # elif provider == 'anthropic':

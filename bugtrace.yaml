@@ -1,6 +1,6 @@
 llm:
-  provider: ollama
-  model: llama3.2:3b
+  provider: openai
+  model: gpt-4o-mini
   temperature: 0.2
 paths:
   project_root: .

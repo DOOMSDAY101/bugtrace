@@ -144,7 +144,7 @@ def run_session_loop(agent: SessionAgent):
 
             event_stream = agent.stream_agent_response(user_input)
 
-            console.print("\n[bold green]💡 Agent:[/bold green]\n")
+            console.print("\n[bold green]💡 Agent:[/bold green]")
 
             buffer = ""
             started = False
@@ -152,7 +152,7 @@ def run_session_loop(agent: SessionAgent):
 
             spinner = Spinner("dots", text="Thinking...")
 
-            # 🔥 SINGLE STREAM CONTROL
+            # SINGLE STREAM CONTROL
             with Live(spinner, console=console, transient=False) as live:
 
                 for event in event_stream:
@@ -186,8 +186,26 @@ def run_session_loop(agent: SessionAgent):
                             if files:
                                 console.print(f"[dim]  Found {len(files)} file(s):[/dim]")
 
-                                for file in files[:5]:
-                                    console.print(f"[dim]    • {file}[/dim]")
+                                for file_info in files[:5]:
+                                    if isinstance(file_info, dict):
+                                        file = file_info.get("file", "unknown")
+                                        line_start = file_info.get("line_start")
+                                        line_end = file_info.get("line_end")
+                                        function = file_info.get("function")
+                                        
+                                        # Build display string
+                                        display = f"    • {file}"
+                                        
+                                        if line_start and line_end:
+                                            display = f"    • {file}:{line_start} (Lines {line_start}-{line_end})"
+                                        
+                                        if function:
+                                            display += f" :: {function}()"
+                                        
+                                        console.print(f"[dim]{display}[/dim]")
+                                    else:
+                                        # Fallback for string format
+                                        console.print(f"[dim]    • {file_info}[/dim]")
 
                                 if len(files) > 5:
                                     console.print(
@@ -206,7 +224,7 @@ def run_session_loop(agent: SessionAgent):
                         # stop spinner ONLY when real output starts
                         if not started:
                             started = True
-                            console.print()  # spacing
+                            # console.print()  # spacing
 
                         thinking = False
                         buffer += event["content"]
@@ -233,99 +251,6 @@ def run_session_loop(agent: SessionAgent):
 
         except Exception as e:
             print_traceback(e, "Error")
-
-#ORIGINAL
-# def run_session_loop(agent: SessionAgent):
-#     """Run the interactive session loop with real-time formatted streaming."""
-#     from rich.spinner import Spinner
-#     from rich.live import Live
-#     from rich.syntax import Syntax
-#     from rich.markdown import Markdown
-    
-#     while True:
-#         try:
-#             user_input = Prompt.ask("\n[bold cyan]You[/bold cyan]").strip()
-            
-#             if user_input.lower() in ['\\q', 'quit', 'exit']:
-#                 console.print("\n[yellow]👋 Session ended[/yellow]\n")
-#                 break
-            
-#             if not user_input:
-#                 continue
-            
-#             spinner = Spinner("dots", text="Processing...")
-            
-#             try:
-#                 # Prepare messages
-#                 with Live(spinner, console=console, transient=True):
-#                     prepared = agent.prepare_messages(user_input)
-                
-#                 messages = prepared['messages']
-#                 intermediate_steps = prepared['intermediate_steps']
-                
-#                 # Display intermediate steps
-#                 if intermediate_steps:
-#                     display_thinking(intermediate_steps)
-                
-#                 # Stream response
-#                 stream = agent.llm.chat_stream(messages)
-                
-#                 # Show spinner until first token
-#                 with Live(spinner, console=console, transient=True):
-#                     first_token = next(stream)
-                
-#                 # Show Agent label
-#                 console.print()
-#                 console.print(f"[bold green]💡 Agent:[/bold green]\n")
-                
-#                 # Use Rich Markdown streaming
-#                 accumulated = first_token
-#                 full_response = [first_token]
-                
-#                 # Create a Live display for markdown
-#                 from rich.live import Live
-#                 from rich.markdown import Markdown
-#                 from rich.text import Text
-
-#                 text = Text(accumulated, overflow="fold")
-
-                
-#                 with Live(text, console=console, refresh_per_second=10,screen=False,          # IMPORTANT
-#                     auto_refresh=True) as live:
-#                     # live.update(Markdown(accumulated))
-                    
-#                     for token in stream:
-#                         accumulated += token
-#                         full_response.append(token)
-                        
-#                         # Update markdown display in real-time
-#                         text.append(token)
-#                         live.update(text)
-#                         live.update(Markdown(accumulated))
-                    
-                
-#                 console.print()  # spacing
-                
-                
-#                 # Save to memory
-#                 response_text = "".join(full_response)
-#                 agent.memory.save_context(
-#                     {"input": user_input},
-#                     {"output": response_text}
-#                 )
-            
-#             except Exception as e:
-#                 import traceback
-#                 console.print(f"\n[red]Error:[/red] {e}")
-#                 console.print(f"[dim]{traceback.format_exc()}[/dim]")
-        
-#         except KeyboardInterrupt:
-#             console.print("\n\n[yellow]👋 Session interrupted[/yellow]")
-#             break
-        
-#         except Exception as e:
-#             console.print(f"\n[red]Error:[/red] {e}")
-#             console.print("[dim]Type \\q to quit[/dim]")
 
 def display_thinking(intermediate_steps: list):
     """Display agent's thinking process."""

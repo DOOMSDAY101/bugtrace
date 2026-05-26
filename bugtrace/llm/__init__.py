@@ -1,5 +1,9 @@
 from .base import LLMError, LLMConnectionError
 from langchain_ollama import ChatOllama
+import os
+from langchain_openai import ChatOpenAI
+from dotenv import load_dotenv
+load_dotenv()
 
 def get_llm(config):
     llm_cfg = config["llm"]
@@ -13,6 +17,14 @@ def get_llm(config):
             model=model,
             temperature=temperature,
             streaming=True
+        )
+    
+    elif provider == "openai":
+        return ChatOpenAI(
+            model=model,
+            temperature=temperature,
+            streaming=True,
+            api_key=os.getenv("OPENAI_API_KEY") 
         )
 
     raise ValueError(f"Unsupported provider: {provider}")

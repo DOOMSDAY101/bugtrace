@@ -9,6 +9,9 @@ from langgraph.checkpoint.memory import MemorySaver
 from ..rag.vector_store import VectorStore
 from ..tools.search_codebase import create_search_tool
 from ..llm import get_llm
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
+import json
+
 
 
 class AgentState(TypedDict):
@@ -51,15 +54,67 @@ class SessionAgent:
         
         
         # System prompt
-        self.system_prompt = """You are a coding assistant.
+        self.system_prompt = """You are Bugtrace, an AI debugging assistant created to help developers find and fix bugs in their code
 
-        Answer the user directly and concisely.
+            PERSONALITY & INTERACTION:
+            - You are friendly, professional, and helpful
+            - When users greet you or ask personal questions, respond warmly before offering technical help
+            - Your name is "Bugtrace" - you're a specialized debugging AI
+            - You can engage in brief casual conversation, but always redirect to how you can help with their code
+            - Remember user details they share (like their name or programming language) and use them naturally
+            - Be concise in casual chat, detailed in technical explanations
 
-        Only use tools when absolutely necessary.
-        Always cite specific files and line numbers when discussing code.
+            CORE RULES:
+            - You MUST use retrieved code when debugging.
+            - NEVER guess functions, files, or logic not shown in tool results.
+            - Tool output is the ONLY source of truth.
+            - If code is missing, search again with more specific terms.
 
-        """
+            CITATION FORMAT (CRITICAL):
+            When referencing code, you MUST use this EXACT format:
+            - File references: `path/to/file.py:line_number` (e.g., `bugtrace/auth.py:65`)
+            - Function references: `path/to/file.py:line_number::function_name()` (e.g., `bugtrace/auth.py:65::login()`)
 
+            Examples of CORRECT citations:
+            ✓ "Bug found in `bugtrace/auth.py:52::login()` - missing error handling"
+            ✓ "The function at `bugtrace/middleware/auth.py:25::check_auth()` has..."
+            ✓ "In `bugtrace/routes/login.py:78`, the code..."
+
+            Examples of INCORRECT citations (DO NOT USE):
+            ✗ "Bug in auth.py" (missing full path and line number)
+            ✗ "Function: login" (missing file path and line number)
+            ✗ "File: auth.py" (missing line number)
+
+            ALWAYS include:
+            1. Full file path (as returned by search tool)
+            2. Line number (line_start from search results)
+            3. Function name (if applicable)
+
+            SEARCH STRATEGY:
+            When investigating issues:
+            1. Start with broad searches (e.g., "authentication", "login", "database")
+            2. Then search for specific functions/patterns (e.g., "verify_password", "hash_password", "token validation")
+            3. Search for error-related code (e.g., "error handling authentication", "exception logging")
+
+            CRITICAL: Use DESCRIPTIVE search queries with context:
+            ✓ GOOD: "user authentication password verification"
+            ✓ GOOD: "login error handling database connection"
+            ✓ GOOD: "JWT token validation expiry check"
+            ✗ BAD: "auth"
+            ✗ BAD: "user"
+            ✗ BAD: single words
+
+            DEBUGGING FLOW:
+            1. Understand the issue (error, logs, behavior)
+            2. Search codebase with DESCRIPTIVE multi-word queries
+            3. Inspect retrieved code carefully
+            4. If unclear, search again with MORE SPECIFIC terms
+            5. When presenting findings, ALWAYS cite with full path and line numbers
+            6. Only then propose a fix
+
+            HALLUCINATION RULE:
+            If it is not in retrieved code, you must not assume it exists.
+"""
     def _create_tools(self) -> list[BaseTool]:
         """Create tools for the agent."""
         tools = []
@@ -154,15 +209,16 @@ class SessionAgent:
         
         # Get current state
         config = {"configurable": {"thread_id": self.thread_id}}
+
         current_state = self.graph.get_state(config)
         
-        # Build initial state
+        #  Build initial state
         if not current_state.values.get("messages"):
-            messages = [human_msg]
+            initial_state = {"messages": [HumanMessage(content=user_input)]}
         else:
-            messages = current_state.values["messages"] + [human_msg]
-        
-        initial_state = {"messages": messages}
+            initial_state = {
+                "messages": current_state.values["messages"] + [HumanMessage(content=user_input)]
+            }
         
         
         # Stream graph execution
@@ -219,6 +275,19 @@ class SessionAgent:
                                 "tool": tool_name,
                                 "result": msg.content,
                                 }
+                                # try:
+                                #     parsed = json.loads(msg.content)
+                                #     event = {
+                                #         "type": "tool_end",
+                                #         "tool": tool_name,
+                                #         "result": json.dumps(parsed, indent=2),
+                                #     }
+                                # except Exception:
+                                #     event = {
+                                #         "type": "tool_end",
+                                #         "tool": tool_name,
+                                #         "result": msg.content,
+                                #     }
 
                                 # Tool-specific post-processing
                                 if tool_name == "search_codebase":
@@ -232,13 +301,39 @@ class SessionAgent:
                     }
 
     def _extract_files_from_result(self, result: str) -> list[str]:
-        """Extract file paths from tool result."""
+        """Extract file paths from JSON tool result."""
+
+        import json
+
         files = []
-        for line in result.split('\n'):
-            if line.startswith('File: '):
-                file_path = line.replace('File: ', '').strip()
-                files.append(file_path)
-        return files
+
+        try:
+            data = json.loads(result)
+
+            # search_codebase format
+            if isinstance(data, dict) and "results" in data:
+                for item in data["results"]:
+                    file_path = item.get("file")
+                    line_start = item.get("line_start")
+                    line_end = item.get("line_end")
+                    function = item.get("function")
+                    if file_path:
+                        files.append({
+                        "file": file_path,
+                        "line_start": line_start,
+                        "line_end": line_end,
+                        "function": function
+                    })
+
+            return files
+
+        except Exception:
+            # fallback (old format or broken output)
+            for line in result.split("\n"):
+                if line.startswith("File: "):
+                    files.append(line.replace("File: ", "").strip())
+
+            return files
     
     def invoke(self, user_input: str) -> str:
         """
