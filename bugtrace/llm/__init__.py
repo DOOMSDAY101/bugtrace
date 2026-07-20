@@ -24,7 +24,6 @@ def get_llm(config):
             model=model,
             temperature=temperature,
             streaming=True,
-            base_url="https://models.inference.ai.azure.com",
             api_key=os.getenv("OPENAI_API_KEY") 
         )
 

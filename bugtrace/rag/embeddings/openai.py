@@ -11,7 +11,6 @@ class OpenAIEmbedder(BaseEmbedder):
             self.embedder = OpenAIEmbeddings(
                 model="text-embedding-3-small",
                 api_key=os.getenv("OPENAI_API_KEY"),
-                base_url="https://models.inference.ai.azure.com"
             )
 
             # determine dimension once
