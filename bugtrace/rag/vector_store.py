@@ -2,11 +2,12 @@ from pathlib import Path
 from typing import List, Dict
 from langchain_chroma import Chroma 
 import hashlib
+from bugtrace.rag.bm25_store import BM25Store
 
 class VectorStore:
     """ChromaDB wrapper for storing code embeddings"""
     
-    def __init__(self, index_dir: Path, project_root: Path, embedder):
+    def __init__(self, index_dir: Path, project_root: Path, embedder,collection_name=None):
         """
         Initialize ChromaDB vector store with auto-generated collection name.
         
@@ -19,10 +20,20 @@ class VectorStore:
         self.embedder = embedder
 
         # Generate unique collection name
-        self.collection_name = self._generate_collection_name()
+        if collection_name:
+            self.collection_name = collection_name
+        else:
+            self.collection_name = self._generate_collection_name()
         project_name = project_root.name
         self.persist_dir = index_dir / self.collection_name
         self.persist_dir.mkdir(parents=True, exist_ok=True)
+
+        # Initialize BM25 Store for hybrid search
+        self.bm25_store = BM25Store(
+            self.persist_dir / "bm25"
+        )
+
+        # self.reranker = Reranker()
         
         # Initialize ChromaDB client
         try:
@@ -92,6 +103,7 @@ class VectorStore:
             ids=ids,
             embeddings=embeddings_list
         )
+        self.bm25_store.add_chunks(chunks)
     
     def delete_file_chunks(self, filepath: str):
         """
@@ -103,6 +115,12 @@ class VectorStore:
         """
         filepath = str(Path(filepath).resolve())
         # Query all chunks from this file
+
+        try: 
+            self.bm25_store.delete_file_chunks(filepath)
+        except Exception:
+            pass
+        
         try:
             all_data = self.vector_store.get()
             ids_to_delete = [
@@ -114,29 +132,106 @@ class VectorStore:
                 self.vector_store.delete(ids=ids_to_delete)
         except Exception:
             pass
-    
-    def search(self, query: str, top_k: int = 6) -> List[Dict]:
+
+    def search(self, query: str, top_k: int = 5, retrieval_k: int = 15):
         """
-        Search for similar chunks.
-        Chroma automatically uses embedder.embed_query() internally.
+        Hybrid retrieval:
+        - semantic search
+        - BM25 keyword search
         """
-        results = self.vector_store.similarity_search_with_score(query=query, k=top_k)
-        
-        return [
-            {
-                'text': doc.page_content,
-                'metadata': doc.metadata,
-                'score': score
-            }
-            for doc, score in results
-        ]
-    
-    
-    def as_retriever(self, k: int = 3):
-        return self.vector_store.as_retriever(
-            search_type="similarity",
-            search_kwargs={"k": k}
+
+        semantic_results = self.vector_store.similarity_search_with_score(
+            query=query,
+            k=retrieval_k
         )
+
+        semantic = []
+
+        for doc, score in semantic_results:
+            normalized_score = 1 / (1 + score)
+            semantic.append({
+                "text": doc.page_content,
+                "metadata": doc.metadata,
+                "score": float(normalized_score),
+                "semantic_score": float(normalized_score),
+                "bm25_score": None,
+                "rerank_score": None,
+                "source": "semantic"
+            })
+
+        keyword = self.bm25_store.search(
+            query=query,
+            k=retrieval_k
+        )
+
+        # Merge + deduplicate
+        combined = {}
+
+        for item in semantic + keyword:
+            key = (
+                item["metadata"].get("file"),
+                str(item["metadata"].get("chunk_id"))
+            )
+
+            if key not in combined:
+                combined[key] = item
+            else:
+                # keep better score
+                existing = combined[key]
+
+                if item.get("bm25_score") is not None:
+                    existing["bm25_score"] = item["bm25_score"]
+
+                if item.get("semantic_score") is not None:
+                    existing["semantic_score"] = item["semantic_score"]
+                
+                # only call hybrid when both contributed
+                if (
+                    existing.get("bm25_score") is not None
+                    and existing.get("semantic_score") is not None
+                ):
+                    existing["source"] = "hybrid"
+
+        merged = list(combined.values())
+
+        
+        # for item in reranked:
+        for item in merged:
+            bm25 = item.get("bm25_score") or 0.0
+            semantic = item.get("semantic_score") or 0.0
+
+            final = (
+                0.5 * bm25 +
+                0.5 * semantic
+            )
+
+            if item["source"] == "hybrid":
+                final += 0.05
+
+            item["final_score"] = final
+            item["score"] = final
+
+            item["score_breakdown"] = {
+                "bm25": bm25,
+                "semantic": semantic,
+                "final": final
+            }
+
+        merged.sort(
+            key=lambda x: x["final_score"],
+            reverse=True
+        )
+
+        return merged[:top_k]
+
+
+    
+    
+    # def as_retriever(self, k: int = 3):
+    #     return self.vector_store.as_retriever(
+    #         search_type="similarity",
+    #         search_kwargs={"k": k}
+    #     )
     def get_stats(self) -> Dict:
         """Get statistics"""
         try:
@@ -149,3 +244,7 @@ class VectorStore:
             'total_chunks': count,
             'index_dir': str(self.index_dir)
         }
+
+    @property
+    def bm25(self):
+        return self.bm25_store

@@ -242,7 +242,10 @@ def _build_embeddings(
     
     vector_store = VectorStore(index_dir, project_root, embedder=embedder)
     if verbose:
-        console.print(f"   [green]✓ Vector store ready: {vector_store.collection_name}[/green]\n")
+        # console.print(f"   [green]✓ Vector store ready: {vector_store.collection_name}[/green]\n")
+        console.print("   [green]✓ Hybrid retrieval system ready[/ green]")
+        console.print(f"   • Vector store: {vector_store.collection_name}")
+        console.print("   • BM25 store: ready\n")
     
 
 # Process files with progress

@@ -6,7 +6,6 @@ Provides conversational interface for bug investigation.
 
 import typer
 from pathlib import Path
-from typing import Optional
 from rich.console import Console
 from rich.prompt import Prompt
 
@@ -16,10 +15,12 @@ from ..rag.embeddings import get_embedder
 from ..rag.indexer import index_project
 from ..rag.vector_store import VectorStore
 from ..agent.session_agent import SessionAgent
-from rich.spinner import Spinner
-from rich.live import Live
 from langchain_core.messages import HumanMessage
 from bugtrace.utils.errors import print_traceback
+from .commands import handle_command
+from .input import get_user_input
+from .commands import handle_command
+from ..utils.text import safe_text
 
 
 
@@ -122,7 +123,8 @@ def session_command(
     except Exception as e:
         print_traceback(e, "Session failed")
         raise typer.Exit(1)
-    
+
+ 
 def run_session_loop(agent: SessionAgent):
     from rich.live import Live
     from rich.console import Console
@@ -133,14 +135,21 @@ def run_session_loop(agent: SessionAgent):
 
     while True:
         try:
-            user_input = Prompt.ask("\n[bold cyan]You[/bold cyan]").strip()
-
-            if user_input.lower() in ['\\q', 'quit', 'exit']:
-                console.print("\n[yellow]👋 Session ended[/yellow]\n")
-                break
+            user_input = get_user_input()
+            user_input = safe_text(user_input)
 
             if not user_input:
                 continue
+
+            # COMMAND HANDLING
+            result = handle_command(user_input, console, agent)
+
+            if result == "exit":
+                break
+
+            if result == "continue":
+                continue
+
 
             event_stream = agent.stream_agent_response(user_input)
 

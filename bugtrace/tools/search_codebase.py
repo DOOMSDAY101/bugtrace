@@ -11,8 +11,7 @@ import json
 if TYPE_CHECKING:
     from bugtrace.rag.vector_store import VectorStore
 
-def create_search_tool(vector_store: "VectorStore", top_k: int = 3):
-    retriever = vector_store.as_retriever(k=top_k)
+def create_search_tool(vector_store: "VectorStore", top_k: int = 5):
 
     @tool("search_codebase")
     def search_codebase(query: str) -> str:
@@ -40,7 +39,8 @@ def create_search_tool(vector_store: "VectorStore", top_k: int = 3):
                 "results": []
             })
         
-        results = retriever.invoke(query)
+        results = vector_store.search(query=query,top_k=top_k)
+
 
         if not results:
             # return f"No relevant code found for query: '{query}'"
@@ -55,14 +55,17 @@ def create_search_tool(vector_store: "VectorStore", top_k: int = 3):
 
 
         for result in results:
-            meta = getattr(result, "metadata", {}) or {}
+            # meta = getattr(result, "metadata", {}) or {}
+            meta = result.get("metadata", {})
 
             structured_results.append({
                 "file": meta.get("file", "unknown"),
                 "line_start": meta.get("line_start", None),
                 "line_end": meta.get("line_end", None),
                 "function": meta.get("function_name", None),
-                "code": result.page_content.strip()
+                "code": result.get("text", "").strip(),
+                "score": result.get("score", 0.0),
+                "source": result.get("source", "hybrid")
             })
 
         return json.dumps({

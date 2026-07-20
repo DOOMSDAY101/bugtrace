@@ -2,7 +2,8 @@ from langchain_openai import OpenAIEmbeddings
 import os
 
 from bugtrace.rag.embeddings.base import BaseEmbedder
-
+from dotenv import load_dotenv
+load_dotenv()
 
 class OpenAIEmbedder(BaseEmbedder):
     def __init__(self):
@@ -10,6 +11,7 @@ class OpenAIEmbedder(BaseEmbedder):
             self.embedder = OpenAIEmbeddings(
                 model="text-embedding-3-small",
                 api_key=os.getenv("OPENAI_API_KEY"),
+                base_url="https://models.inference.ai.azure.com"
             )
 
             # determine dimension once
