@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 # Changelog
 
+## [2.2.0] - 2026-07-21
+
+### Added
+
+- Hybrid code search combining BM25 lexical retrieval with vector similarity search
+- Integrated command workflow for a more streamlined CLI experience
+
+### Changed
+
+- Improved search ranking by combining lexical and semantic retrieval
+- Enhanced code search performance and relevance
+- Internal command integration and execution flow refinements
+
+### Improved
+
+- Better retrieval accuracy across large codebases
+- More consistent search results for exact identifiers and natural language queries
+
 ## [2.1.0] - 2026-05-26
 
 ### Added
@@ -185,4 +203,7 @@ bugtrace session
 
 ---
 
+[2.2.0]: https://github.com/DOOMSDAY101/bugtrace/releases/tag/v2.2.0
+[2.1.0]: https://github.com/DOOMSDAY101/bugtrace/releases/tag/v2.1.0
+[2.0.0]: https://github.com/DOOMSDAY101/bugtrace/releases/tag/v2.0.0
 [1.0.0]: https://github.com/DOOMSDAY101/bugtrace/releases/tag/v1.0.0
