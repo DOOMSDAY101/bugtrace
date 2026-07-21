@@ -2,7 +2,7 @@
 Bugtrace - AI-powered debugging assistant with RAG-based codebase search.
 """
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 __author__ = "Ifeoluwa Sulaiman"
 __email__ = "ifeoluwasulaiman@gmail.com"
 

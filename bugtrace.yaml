@@ -13,6 +13,7 @@ paths:
     - "*.pyc"
     - "__pycache__"
     - bugtrace.egg-info
+    - graphify-out
   logs:
     - logs/
 rag:

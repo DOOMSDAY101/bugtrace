@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from rich.console import Console
 import typer
@@ -8,13 +7,16 @@ from pyfiglet import Figlet
 from rich.text import Text
 from rich import box
 from bugtrace.utils.fs import ensure_state_dir
-from bugtrace.config.settings import create_default_config
 import shutil
-from typing import Optional
 
-from .session import session_command
+from importlib.metadata import version, PackageNotFoundError
 
+from importlib.metadata import version, PackageNotFoundError
 
+try:
+    __version__ = version("bugtrace")
+except PackageNotFoundError:
+    __version__ = "unknown"
 
 
 
@@ -67,11 +69,21 @@ def create_block_logo():
     return text
 
 @app.callback(invoke_without_command=True)
-def main(ctx: typer.Context):
+def main(ctx: typer.Context,
+        version: bool = typer.Option(
+        None,
+        "--version",
+        "-v",
+        help="Show Bugtrace version and exit.",
+        is_eager=True,
+    ),):
     """
     Bugtrace CLI
     """
  
+    if version:
+            console.print(f"[bold green]Bugtrace[/bold green] v{__version__}")
+            raise typer.Exit()
     # Show logo ONLY if:
     # - no subcommand (bugtrace)
     # - help is requested
@@ -127,6 +139,7 @@ def init(
     """
     Initialize Bugtrace configuration for this project.
     """
+    from bugtrace.config.settings import create_default_config
     project_root = path or Path.cwd()
 
      # Check if already initialized
@@ -437,6 +450,7 @@ def session(
         \\q - Quit session
     """
     from pathlib import Path
+    from .session import session_command
     
     project_root = Path(path).resolve()
     try:
